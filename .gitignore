@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 虚拟环境
+.venv/
+venv/
+
+# 密钥 / 环境变量（切勿提交）
+.env
+API.txt
+
+# 本地数据库（部署用 Postgres 或 init 脚本重建）
+*.db
+instance/
+
+# IDE
+.idea/
+
+# 系统
+.DS_Store
+Thumbs.db

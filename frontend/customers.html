@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>京东电子商品物流系统 - 客户档案</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">📦</div>
+                    <h1>京东电子商品物流系统</h1>
+                </div>
+            </div>
+            <div class="sidebar-menu">
+                <ul>
+                    <li><a href="index.html"><i>🏠</i> 系统首页</a></li>
+                    <li><a href="users.html"><i>👥</i> 用户管理</a></li>
+                    <li><a href="categories.html"><i>📁</i> 商品类型</a></li>
+                    <li><a href="products.html"><i>📦</i> 商品档案</a></li>
+                    <li><a href="customers.html" class="active"><i>👤</i> 客户档案</a></li>
+                    <li><a href="purchase-orders.html"><i>📥</i> 采购入库</a></li>
+                    <li><a href="sales-orders.html"><i>📤</i> 销售出库</a></li>
+                    <li><a href="stock.html"><i>📊</i> 库存查询</a></li>
+                    <li><a href="invoices.html"><i>🧾</i> 发票管理</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="content">
+            <div class="header">
+                <h2>👤 客户档案管理</h2>
+                <div class="user-info">
+                    <span>欢迎, <strong>Admin</strong></span>
+                    <div class="user-avatar">A</div>
+                    <button class="logout-btn" onclick="handleLogout()"><i>🚪</i> 退出登录</button>
+                </div>
+            </div>
+            <div class="page-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>客户列表</h3>
+                        <button class="btn btn-primary" onclick="showAddModal()">添加客户</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>客户名称</th>
+                                <th>联系人</th>
+                                <th>联系电话</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customerTable">
+                            <tr><td colspan="5" style="text-align: center; color: #b8b8d0;">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <script>
+        async function loadCustomers() {
+            try {
+                const customers = await api.getCustomers();
+                const tbody = document.getElementById('customerTable');
+                tbody.innerHTML = customers.map(customer => `
+                    <tr>
+                        <td>${customer.id}</td>
+                        <td>${customer.name}</td>
+                        <td>${customer.contact || '-'}</td>
+                        <td>${customer.phone || '-'}</td>
+                        <td>
+                            <div class="table-actions">
+                                <button class="btn-edit" onclick="showEditModal(${customer.id})">编辑</button>
+                                <button class="btn-delete" onclick="deleteCustomer(${customer.id})">删除</button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                showAlert(error.message, 'error');
+            }
+        }
+        
+        function showAddModal() {
+            createModal('添加客户', `
+                <div class="form-group">
+                    <label>客户名称</label>
+                    <input type="text" id="cust-name" placeholder="请输入客户名称">
+                </div>
+                <div class="form-group">
+                    <label>联系人</label>
+                    <input type="text" id="cust-contact" placeholder="请输入联系人">
+                </div>
+                <div class="form-group">
+                    <label>联系电话</label>
+                    <input type="text" id="cust-phone" placeholder="请输入联系电话">
+                </div>
+            `, async () => {
+                const name = document.getElementById('cust-name').value;
+                
+                if (!name) {
+                    throw new Error('请输入客户名称');
+                }
+                
+                await api.createCustomer({
+                    name,
+                    contact: document.getElementById('cust-contact').value,
+                    phone: document.getElementById('cust-phone').value
+                });
+                showAlert('客户添加成功');
+                loadCustomers();
+            });
+        }
+        
+        async function showEditModal(id) {
+            const customer = await api.getCustomer(id);
+            createModal('编辑客户', `
+                <div class="form-group">
+                    <label>客户名称</label>
+                    <input type="text" id="edit-name" value="${customer.name}">
+                </div>
+                <div class="form-group">
+                    <label>联系人</label>
+                    <input type="text" id="edit-contact" value="${customer.contact || ''}">
+                </div>
+                <div class="form-group">
+                    <label>联系电话</label>
+                    <input type="text" id="edit-phone" value="${customer.phone || ''}">
+                </div>
+            `, async () => {
+                const name = document.getElementById('edit-name').value;
+                
+                if (!name) {
+                    throw new Error('请输入客户名称');
+                }
+                
+                await api.updateCustomer(id, {
+                    name,
+                    contact: document.getElementById('edit-contact').value,
+                    phone: document.getElementById('edit-phone').value
+                });
+                showAlert('客户更新成功');
+                loadCustomers();
+            });
+        }
+        
+        async function deleteCustomer(id) {
+            if (!confirm('确定要删除该客户吗？')) return;
+            
+            try {
+                await api.deleteCustomer(id);
+                showAlert('客户删除成功');
+                loadCustomers();
+            } catch (error) {
+                showAlert(error.message, 'error');
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadCurrentUser();
+            await loadCustomers();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>京东电子商品物流系统 - 库存查询</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">📦</div>
+                    <h1>京东电子商品物流系统</h1>
+                </div>
+            </div>
+            <div class="sidebar-menu">
+                <ul>
+                    <li><a href="index.html"><i>🏠</i> 数据看板</a></li>
+                    <li><a href="users.html"><i>👥</i> 用户管理</a></li>
+                    <li><a href="categories.html"><i>📁</i> 商品类型</a></li>
+                    <li><a href="products.html"><i>📦</i> 商品档案</a></li>
+                    <li><a href="customers.html"><i>👤</i> 客户档案</a></li>
+                    <li><a href="purchase-orders.html"><i>📥</i> 采购入库</a></li>
+                    <li><a href="sales-orders.html"><i>📤</i> 销售出库</a></li>
+                    <li><a href="stock.html" class="active"><i>📊</i> 库存查询</a></li>
+                    <li><a href="invoices.html"><i>🧾</i> 发票管理</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="content">
+            <div class="header">
+                <h2>📊 库存查询</h2>
+                <div class="user-info">
+                    <span>欢迎, <strong>Admin</strong></span>
+                    <div class="user-avatar">A</div>
+                    <button class="logout-btn" onclick="handleLogout()"><i>🚪</i> 退出登录</button>
+                </div>
+            </div>
+            <div class="page-content">
+                <!-- 详细搜索框 - 放上方 -->
+                <div class="search-box-dark">
+                    <div class="search-row">
+                        <div class="search-group-dark">
+                            <label>关键词搜索</label>
+                            <input type="text" id="search-input" placeholder="输入商品名称、型号等关键词.." oninput="onSearchInput()">
+                        </div>
+                        <div class="search-actions">
+                            <button class="btn btn-primary" onclick="searchStock()">🔍 搜索</button>
+                            <button class="btn btn-secondary" onclick="resetSearch()">🔄 重置</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 下拉类型选择 - 放下方 -->
+                <div class="category-filter-dark">
+                    <div class="filter-row">
+                        <div class="filter-group-dark">
+                            <label>商品类型</label>
+                            <select id="category-level1" onchange="onCategoryChange(1)">
+                                <option value="">请选择商品类型</option>
+                            </select>
+                        </div>
+                        <div class="filter-group-dark">
+                            <label>品牌</label>
+                            <select id="category-level2" onchange="onCategoryChange(2)">
+                                <option value="">请先选择商品类型</option>
+                            </select>
+                        </div>
+                        <div class="filter-group-dark">
+                            <label>型号</label>
+                            <select id="category-level3" onchange="onCategoryChange(3)">
+                                <option value="">请先选择品牌</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 筛选状态标签 -->
+                <div id="filter-tags" class="filter-tags-dark" style="display: none;">
+                    <span class="filter-tag-dark">
+                        已选：<span id="selected-path"></span>
+                        <button class="tag-remove" onclick="clearCategoryFilter()">×</button>
+                    </span>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3>库存列表</h3>
+                        <div class="stock-summary">
+                            <span>商品总数：<strong id="total-count">0</strong></span>
+                            <span>总库存：<strong id="total-stock">0</strong></span>
+                            <span class="summary-alert" id="alert-count" style="display: none;">
+                                ⚠️ 库存预警：<strong style="color: #ef4444;">0</strong>
+                            </span>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>预警</th>
+                                <th>商品名称</th>
+                                <th>类别</th>
+                                <th>单位</th>
+                                <th>参考价格</th>
+                                <th>库存数量</th>
+                                <th>库存状态</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stockTable">
+                            <tr><td colspan="7" style="text-align: center; color: #b8b8d0;">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <script>
+        let stockData = [];
+        let categoryData = [];
+        let selectedCategoryIds = [];
+        
+        async function loadCategories() {
+            try {
+                categoryData = await api.getCategoryTree();
+                populateLevel1();
+            } catch (error) {
+                console.error('加载分类失败:', error);
+            }
+        }
+        
+        function populateLevel1() {
+            const select = document.getElementById('category-level1');
+            select.innerHTML = '<option value="">请选择商品类型</option>';
+            
+            categoryData.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = item.name;
+                select.appendChild(option);
+            });
+        }
+        
+        function populateLevel2(parentId) {
+            const select = document.getElementById('category-level2');
+            select.innerHTML = '<option value="">请选择品牌</option>';
+            
+            if (!parentId) {
+                select.disabled = true;
+                document.getElementById('category-level3').innerHTML = '<option value="">请先选择品牌</option>';
+                document.getElementById('category-level3').disabled = true;
+                return;
+            }
+            
+            select.disabled = false;
+            const parent = findCategoryById(parentId);
+            if (parent && parent.children) {
+                parent.children.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = item.name;
+                    select.appendChild(option);
+                });
+            }
+            
+            document.getElementById('category-level3').innerHTML = '<option value="">请先选择品牌</option>';
+            document.getElementById('category-level3').disabled = true;
+        }
+        
+        function populateLevel3(parentId) {
+            const select = document.getElementById('category-level3');
+            select.innerHTML = '<option value="">请选择型号</option>';
+            
+            if (!parentId) {
+                select.disabled = true;
+                return;
+            }
+            
+            select.disabled = false;
+            const parent = findCategoryById(parentId);
+            if (parent && parent.children) {
+                parent.children.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = item.name;
+                    select.appendChild(option);
+                });
+            }
+        }
+        
+        function findCategoryById(categoryId) {
+            function search(items) {
+                for (const item of items) {
+                    if (item.id === categoryId) return item;
+                    if (item.children) {
+                        const found = search(item.children);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            }
+            return search(categoryData);
+        }
+        
+        function getCategoryPath(categoryId) {
+            const path = [];
+            function search(items, targetId) {
+                for (const item of items) {
+                    if (item.id === targetId) {
+                        path.unshift(item.name);
+                        return true;
+                    }
+                    if (item.children) {
+                        if (search(item.children, targetId)) {
+                            path.unshift(item.name);
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            search(categoryData, categoryId);
+            return path.join(' > ');
+        }
+        
+        function onCategoryChange(level) {
+            const level1 = document.getElementById('category-level1').value;
+            const level2 = document.getElementById('category-level2').value;
+            const level3 = document.getElementById('category-level3').value;
+            
+            if (level === 1) {
+                populateLevel2(level1 ? parseInt(level1) : null);
+                document.getElementById('category-level3').value = '';
+            } else if (level === 2) {
+                populateLevel3(level2 ? parseInt(level2) : null);
+            }
+            
+            updateCategoryIds();
+            updateFilterTags();
+            searchStock();
+        }
+        
+        function updateCategoryIds() {
+            selectedCategoryIds = [];
+            const level3 = document.getElementById('category-level3').value;
+            const level2 = document.getElementById('category-level2').value;
+            const level1 = document.getElementById('category-level1').value;
+            
+            let selectedId = null;
+            if (level3) selectedId = parseInt(level3);
+            else if (level2) selectedId = parseInt(level2);
+            else if (level1) selectedId = parseInt(level1);
+            
+            if (selectedId) {
+                selectedCategoryIds = getAllChildCategoryIds(selectedId);
+            }
+        }
+        
+        function getAllChildCategoryIds(categoryId) {
+            const ids = [categoryId];
+            
+            function collectChildren(parentId) {
+                const parent = findCategoryById(parentId);
+                if (parent && parent.children) {
+                    parent.children.forEach(child => {
+                        ids.push(child.id);
+                        collectChildren(child.id);
+                    });
+                }
+            }
+            
+            collectChildren(categoryId);
+            return ids;
+        }
+        
+        function updateFilterTags() {
+            const level3 = document.getElementById('category-level3').value;
+            const level2 = document.getElementById('category-level2').value;
+            const level1 = document.getElementById('category-level1').value;
+            
+            let selectedId = null;
+            if (level3) selectedId = parseInt(level3);
+            else if (level2) selectedId = parseInt(level2);
+            else if (level1) selectedId = parseInt(level1);
+            
+            const tagsDiv = document.getElementById('filter-tags');
+            const pathSpan = document.getElementById('selected-path');
+            
+            if (selectedId) {
+                pathSpan.textContent = getCategoryPath(selectedId);
+                tagsDiv.style.display = 'flex';
+            } else {
+                tagsDiv.style.display = 'none';
+            }
+        }
+        
+        function clearCategoryFilter() {
+            document.getElementById('category-level1').value = '';
+            document.getElementById('category-level2').value = '';
+            document.getElementById('category-level3').value = '';
+            populateLevel2(null);
+            selectedCategoryIds = [];
+            updateFilterTags();
+            searchStock();
+        }
+        
+        function onSearchInput() {
+            searchStock();
+        }
+        
+        async function loadStock() {
+            try {
+                stockData = await api.getStock();
+                updateSummary();
+                renderStock(stockData);
+            } catch (error) {
+                showAlert(error.message, 'error');
+            }
+        }
+        
+        function updateSummary() {
+            const filteredData = getFilteredData();
+            const totalCount = filteredData.length;
+            const totalStock = filteredData.reduce((sum, item) => sum + (item.stock || 0), 0);
+            const alertCount = filteredData.filter(item => item.stock < 10).length;
+            
+            document.getElementById('total-count').textContent = totalCount;
+            document.getElementById('total-stock').textContent = totalStock;
+            
+            if (alertCount > 0) {
+                document.getElementById('alert-count').style.display = 'inline-block';
+                document.getElementById('alert-count').querySelector('strong').textContent = alertCount;
+            } else {
+                document.getElementById('alert-count').style.display = 'none';
+            }
+        }
+        
+        function getFilteredData() {
+            let filtered = [...stockData];
+            const keyword = document.getElementById('search-input').value.toLowerCase().trim();
+            
+            if (selectedCategoryIds.length > 0) {
+                filtered = filtered.filter(item => selectedCategoryIds.includes(item.category_id));
+            }
+            
+            if (keyword) {
+                filtered = filtered.filter(item => 
+                    item.product_name.toLowerCase().includes(keyword) ||
+                    (item.category_name && item.category_name.toLowerCase().includes(keyword))
+                );
+            }
+            
+            return filtered;
+        }
+        
+        function renderStock(data) {
+            const tbody = document.getElementById('stockTable');
+            
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #b8b8d0;">暂无匹配数据</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = data.map(item => {
+                let status = '正常';
+                let statusColor = '#10b981';
+                let alertIcon = '';
+                
+                if (item.stock === 0) {
+                    status = '缺货';
+                    statusColor = '#ef4444';
+                    alertIcon = '<span class="alert-icon">🚫</span>';
+                } else if (item.stock < 5) {
+                    status = '紧急预警';
+                    statusColor = '#dc2626';
+                    alertIcon = '<span class="alert-icon">🔴</span>';
+                } else if (item.stock < 10) {
+                    status = '库存偏低';
+                    statusColor = '#f59e0b';
+                    alertIcon = '<span class="alert-icon">🟡</span>';
+                }
+                
+                return `
+                    <tr>
+                        <td class="alert-column">${alertIcon}</td>
+                        <td>${item.product_name}</td>
+                        <td>${item.category_name || '-'}</td>
+                        <td>${item.unit || '-'}</td>
+                        <td>${formatCurrency(item.price)}</td>
+                        <td class="${item.stock < 10 ? 'stock-low' : ''}">${item.stock}</td>
+                        <td style="color: ${statusColor}; font-weight: bold;">${status}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        function searchStock() {
+            const filtered = getFilteredData();
+            updateSummary();
+            renderStock(filtered);
+        }
+        
+        function resetSearch() {
+            document.getElementById('category-level1').value = '';
+            document.getElementById('category-level2').value = '';
+            document.getElementById('category-level3').value = '';
+            document.getElementById('search-input').value = '';
+            populateLevel2(null);
+            selectedCategoryIds = [];
+            updateFilterTags();
+            loadStock();
+        }
+        
+        function formatCurrency(value) {
+            if (value === null || value === undefined) return '-';
+            return '¥' + parseFloat(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        
+        function showAlert(message, type = 'info') {
+            // 使用utils.js中的showAlert函数
+        }
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadCurrentUser();
+            await loadCategories();
+            await loadStock();
+        });
+    </script>
+    <style>
+        /* 搜索框 */
+        .search-box-dark {
+            background: #252542;
+            padding: 22px 26px;
+            border-radius: 14px;
+            margin-bottom: 20px;
+            border: 1px solid #3d3d5c;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+        }
+        .search-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .search-group-dark {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+            min-width: 300px;
+            max-width: 450px;
+        }
+        .search-group-dark label {
+            font-size: 13px;
+            color: #b8b8d0;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .search-group-dark input {
+            padding: 14px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #3d3d5c;
+            border-radius: 10px;
+            font-size: 15px;
+            color: #ffffff;
+            width: 100%;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        .search-group-dark input:focus {
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+        }
+        .search-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        /* 分类筛选 */
+        .category-filter-dark {
+            background: #252542;
+            padding: 22px 26px;
+            border-radius: 14px;
+            margin-bottom: 20px;
+            border: 1px solid #3d3d5c;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+        }
+        .filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+        }
+        .filter-group-dark {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+            min-width: 200px;
+        }
+        .filter-group-dark label {
+            font-size: 13px;
+            color: #b8b8d0;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .filter-group-dark select {
+            padding: 14px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #3d3d5c;
+            border-radius: 10px;
+            font-size: 15px;
+            color: #ffffff;
+            width: 100%;
+            outline: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .filter-group-dark select:focus {
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+        }
+        .filter-group-dark select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* 筛选标签 */
+        .filter-tags-dark {
+            background: rgba(102, 126, 234, 0.1);
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+        .filter-tag-dark {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #667eea;
+            font-weight: 600;
+        }
+        .tag-remove {
+            background: rgba(239, 68, 68, 0.2);
+            border: none;
+            color: #ef4444;
+            font-size: 18px;
+            line-height: 1;
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .tag-remove:hover {
+            background: rgba(239, 68, 68, 0.4);
+        }
+        
+        /* 库存汇总 */
+        .stock-summary {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .stock-summary span {
+            color: #b8b8d0;
+            font-size: 14px;
+        }
+        .stock-summary strong {
+            color: #ffffff;
+            font-size: 18px;
+            margin-left: 5px;
+        }
+        .summary-alert {
+            background: rgba(239, 68, 68, 0.1);
+            padding: 5px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        
+        /* 预警图标 */
+        .alert-column {
+            text-align: center;
+            width: 50px;
+        }
+        .alert-icon {
+            font-size: 18px;
+        }
+        
+        /* 库存低 */
+        .stock-low {
+            color: #f59e0b;
+            font-weight: bold;
+        }
+    </style>
+</body>
+</html>

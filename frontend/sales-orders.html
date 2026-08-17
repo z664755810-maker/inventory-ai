@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>京东电子商品物流系统 - 销售出库</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">📦</div>
+                    <h1>京东电子商品物流系统</h1>
+                </div>
+            </div>
+            <div class="sidebar-menu">
+                <ul>
+                    <li><a href="index.html"><i>🏠</i> 系统首页</a></li>
+                    <li><a href="users.html"><i>👥</i> 用户管理</a></li>
+                    <li><a href="categories.html"><i>📁</i> 商品类型</a></li>
+                    <li><a href="products.html"><i>📦</i> 商品档案</a></li>
+                    <li><a href="customers.html"><i>👤</i> 客户档案</a></li>
+                    <li><a href="purchase-orders.html"><i>📥</i> 采购入库</a></li>
+                    <li><a href="sales-orders.html" class="active"><i>📤</i> 销售出库</a></li>
+                    <li><a href="stock.html"><i>📊</i> 库存查询</a></li>
+                    <li><a href="invoices.html"><i>🧾</i> 发票管理</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="content">
+            <div class="header">
+                <h2>📤 销售出库管理</h2>
+                <div class="user-info">
+                    <span>欢迎, <strong>Admin</strong></span>
+                    <div class="user-avatar">A</div>
+                    <button class="logout-btn" onclick="handleLogout()"><i>🚪</i> 退出登录</button>
+                </div>
+            </div>
+            <div class="page-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>销售出库单列表</h3>
+                        <button class="btn btn-primary" onclick="showAddModal()">添加销售出库单</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                        <th>ID</th>
+                        <th>客户</th>
+                        <th>商品</th>
+                        <th>数量</th>
+                        <th>单价</th>
+                        <th>总金额</th>
+                        <th>状态</th>
+                        <th>出库日期</th>
+                        <th>操作</th>
+                    </tr>
+                        </thead>
+                        <tbody id="salesTable">
+                            <tr><td colspan="9" style="text-align: center; color: #b8b8d0;">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <script>
+        
+        let customers = [];
+        let products = [];
+        
+        async function loadData() {
+            [customers, products] = await Promise.all([
+                api.getCustomers(),
+                api.getProducts()
+            ]);
+        }
+        
+        async function loadSalesOrders() {
+            try {
+                const orders = await api.getSalesOrders();
+                const tbody = document.getElementById('salesTable');
+                tbody.innerHTML = orders.map(order => {
+                    const statusText = order.status === 'completed' ? '已完成' : '待处理';
+                    const statusClass = order.status === 'completed' ? 'status-completed' : 'status-pending';
+                    const confirmBtn = order.status === 'pending' 
+                        ? `<button class="btn-confirm" onclick="confirmOrder(${order.id})">确认出库</button>` 
+                        : '';
+                    return `
+                        <tr>
+                            <td>${order.id}</td>
+                            <td>${order.customer_name || '-'}</td>
+                            <td>${order.product_name || '-'}</td>
+                            <td>${order.quantity}</td>
+                            <td>${formatCurrency(order.unit_price)}</td>
+                            <td>${formatCurrency(order.total_amount)}</td>
+                            <td><span class="status ${statusClass}">${statusText}</span></td>
+                            <td>${formatDate(order.sale_date)}</td>
+                            <td>
+                                <div class="table-actions">
+                                    ${confirmBtn}
+                                    <button class="btn-edit" onclick="showEditModal(${order.id})">编辑</button>
+                                    <button class="btn-delete" onclick="deleteOrder(${order.id})">删除</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                showAlert(error.message, 'error');
+            }
+        }
+        
+        async function confirmOrder(id) {
+            if (!confirm('确定要确认该销售订单出库吗？库存将相应减少。')) return;
+            
+            try {
+                await api.updateSalesOrder(id, { status: 'completed' });
+                showAlert('销售订单已确认出库');
+                loadSalesOrders();
+            } catch (error) {
+                showAlert(error.message, 'error');
+            }
+        }
+        
+        function getCustomerOptions(selectedId = null) {
+            return customers.map(cust => 
+                `<option value="${cust.id}" ${cust.id === selectedId ? 'selected' : ''}>${cust.name}</option>`
+            ).join('');
+        }
+        
+        function getProductOptions(selectedId = null) {
+            return products.map(prod => 
+                `<option value="${prod.id}" ${prod.id === selectedId ? 'selected' : ''}>${prod.name} (库存: ${prod.stock})</option>`
+            ).join('');
+        }
+        
+        function showAddModal() {
+            createModal('添加销售出库单', `
+                <div class="form-group">
+                    <label>客户</label>
+                    <select id="so-customer">
+                        <option value="">请选择客户</option>
+                        ${getCustomerOptions()}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>商品</label>
+                    <select id="so-product">
+                        <option value="">请选择商品</option>
+                        ${getProductOptions()}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>出库数量</label>
+                    <input type="number" id="so-quantity" placeholder="请输入出库数量">
+                </div>
+                <div class="form-group">
+                    <label>单价</label>
+                    <input type="number" step="0.01" id="so-price" placeholder="请输入单价">
+                </div>
+            `, async () => {
+                const data = {
+                    customer_id: document.getElementById('so-customer').value || null,
+                    product_id: document.getElementById('so-product').value || null,
+                    quantity: parseInt(document.getElementById('so-quantity').value),
+                    unit_price: parseFloat(document.getElementById('so-price').value)
+                };
+                
+                if (!data.product_id) {
+                    throw new Error('请选择商品');
+                }
+                if (!data.quantity || data.quantity <= 0) {
+                    throw new Error('请输入有效的出库数量');
+                }
+                
+                await api.createSalesOrder(data);
+                showAlert('销售出库单添加成功');
+                loadSalesOrders();
+            });
+        }
+        
+        async function showEditModal(id) {
+            const order = await api.getSalesOrder(id);
+            createModal('编辑销售出库单', `
+                <div class="form-group">
+                    <label>客户</label>
+                    <select id="edit-customer">
+                        <option value="">请选择客户</option>
+                        ${getCustomerOptions(order.customer_id)}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>商品</label>
+                    <select id="edit-product" disabled>
+                        <option value="${order.product_id}" selected>${order.product_name}</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>出库数量</label>
+                    <input type="number" id="edit-quantity" value="${order.quantity}">
+                </div>
+                <div class="form-group">
+                    <label>单价</label>
+                    <input type="number" step="0.01" id="edit-price" value="${order.unit_price}">
+                </div>
+            `, async () => {
+                const data = {
+                    customer_id: document.getElementById('edit-customer').value || null,
+                    quantity: parseInt(document.getElementById('edit-quantity').value),
+                    unit_price: parseFloat(document.getElementById('edit-price').value)
+                };
+                
+                if (!data.quantity || data.quantity <= 0) {
+                    throw new Error('请输入有效的出库数量');
+                }
+                
+                await api.updateSalesOrder(id, data);
+                showAlert('销售出库单更新成功');
+                loadSalesOrders();
+            });
+        }
+        
+        async function deleteOrder(id) {
+            if (!confirm('确定要删除该销售出库单吗？库存将相应增加。')) return;
+            
+            try {
+                await api.deleteSalesOrder(id);
+                showAlert('销售出库单删除成功');
+                loadSalesOrders();
+            } catch (error) {
+                showAlert(error.message, 'error');
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadCurrentUser();
+            await loadData();
+            await loadSalesOrders();
+        });
+    </script>
+</body>
+</html>

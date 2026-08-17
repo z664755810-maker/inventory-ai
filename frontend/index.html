@@ -1,0 +1,1420 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>京东电子商品物流系统 - 数据可视化首页</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">📱</div>
+                    <h1>京东电子商品物流系统</h1>
+                </div>
+            </div>
+            <div class="sidebar-menu">
+                <ul>
+                    <li><a href="index.html" class="active"><i>📊</i> 数据看板</a></li>
+                    <li><a href="users.html"><i>👥</i> 用户管理</a></li>
+                    <li><a href="categories.html"><i>📁</i> 商品类型</a></li>
+                    <li><a href="products.html"><i>📦</i> 商品档案</a></li>
+                    <li><a href="customers.html"><i>👤</i> 客户档案</a></li>
+                    <li><a href="purchase-orders.html"><i>📥</i> 采购入库</a></li>
+                    <li><a href="sales-orders.html"><i>📤</i> 销售出库</a></li>
+                    <li><a href="stock.html"><i>📦</i> 库存查询</a></li>
+                    <li><a href="invoices.html"><i>🧾</i> 发票管理</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="content">
+            <div class="header">
+                <div class="header-left">
+                    <h2>📊 数据可视化看板</h2>
+                    <div class="date-range">
+                        <select id="timeRange" onchange="loadDashboard()">
+                            <option value="30">近30天</option>
+                            <option value="90">近90天</option>
+                            <option value="365">近一年</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="user-info">
+                    <span>欢迎, <strong>Admin</strong></span>
+                    <div class="user-avatar">A</div>
+                    <button class="logout-btn" onclick="handleLogout()"><i>🚪</i> 退出登录</button>
+                </div>
+            </div>
+            <div class="page-content">
+                <!-- 统计卡片 -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">📦</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="productCount">0</div>
+                            <div class="stat-label">商品总数</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">👤</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="customerCount">0</div>
+                            <div class="stat-label">客户总数</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">📥</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="purchaseAmount">¥0</div>
+                            <div class="stat-label">采购总额</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red">📤</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="salesAmount">¥0</div>
+                            <div class="stat-label">销售总额</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">💰</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="profitAmount">¥0</div>
+                            <div class="stat-label">毛利润</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon yellow">⚠️</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="lowStockCount">0</div>
+                            <div class="stat-label">库存预警</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-row">
+                    <!-- 销售趋势图 -->
+                    <div class="chart-card">
+                        <div class="card-header">
+                            <h3>📈 销售趋势</h3>
+                            <div class="chart-tabs">
+                                <button class="tab-btn active" onclick="switchSalesChart('month')">月度</button>
+                                <button class="tab-btn" onclick="switchSalesChart('category')">品类</button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="salesChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- 库存分布图 -->
+                    <div class="chart-card">
+                        <div class="card-header">
+                            <h3>📦 库存分布</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="stockChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-row">
+                    <!-- 热门产品排行榜 -->
+                    <div class="chart-card">
+                        <div class="card-header">
+                            <h3>🏆 热门产品TOP10</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="topProductsChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- 销售占比图 -->
+                    <div class="chart-card">
+                        <div class="card-header">
+                            <h3>📊 品类销售占比</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="categoryPieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 库存预警表格 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>⚠️ 库存预警商品</h3>
+                        <span class="badge warning">低于10件</span>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>商品名称</th>
+                                <th>类别</th>
+                                <th>当前库存</th>
+                                <th>预警阈值</th>
+                                <th>单位</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lowStockTable">
+                            <tr><td colspan="5" style="text-align: center; color: #b8b8d0;">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 最近订单列表 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>📋 最近订单动态</h3>
+                        <div class="chart-tabs">
+                            <button class="tab-btn active" onclick="loadRecentOrders('sales')">销售订单</button>
+                            <button class="tab-btn" onclick="loadRecentOrders('purchase')">采购订单</button>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>订单编号</th>
+                                <th>客户</th>
+                                <th>商品</th>
+                                <th>数量</th>
+                                <th>金额</th>
+                                <th>状态</th>
+                                <th>日期</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentOrdersTable">
+                            <tr><td colspan="7" style="text-align: center; color: #b8b8d0;">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <script>
+        let salesChart, stockChart, topProductsChart, categoryPieChart;
+        
+        async function loadDashboard() {
+            const days = parseInt(document.getElementById('timeRange').value) || 30;
+            await Promise.all([
+                loadStats(days),
+                loadSalesChart('month', days),
+                loadStockChart(),
+                loadTopProductsChart(days),
+                loadCategoryPieChart(days),
+                loadLowStock(),
+                loadRecentOrders('sales', days)
+            ]);
+        }
+        
+        async function loadStats(days) {
+            try {
+                document.getElementById('productCount').textContent = '加载中...';
+                document.getElementById('customerCount').textContent = '加载中...';
+                document.getElementById('purchaseAmount').textContent = '加载中...';
+                document.getElementById('salesAmount').textContent = '加载中...';
+                document.getElementById('profitAmount').textContent = '加载中...';
+                document.getElementById('lowStockCount').textContent = '加载中...';
+                
+                const [products, customers, purchaseOrders, salesOrders, stock] = await Promise.all([
+                    api.getProducts(),
+                    api.getCustomers(),
+                    api.getPurchaseOrders(days),
+                    api.getSalesOrders(days),
+                    api.getStock()
+                ]);
+                
+                document.getElementById('productCount').textContent = products.length || 0;
+                document.getElementById('customerCount').textContent = customers.length || 0;
+                
+                const purchaseAmount = purchaseOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+                const salesAmount = salesOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+                
+                document.getElementById('purchaseAmount').textContent = formatCurrency(purchaseAmount);
+                document.getElementById('salesAmount').textContent = formatCurrency(salesAmount);
+                document.getElementById('profitAmount').textContent = formatCurrency(salesAmount - purchaseAmount);
+                
+                // 计算库存预警数量
+                const lowStockCount = stock.filter(item => item.stock < 10).length;
+                document.getElementById('lowStockCount').textContent = lowStockCount;
+                
+                console.log('Stats loaded successfully:', {
+                    products: products.length,
+                    customers: customers.length,
+                    purchaseAmount,
+                    salesAmount,
+                    lowStockCount
+                });
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+                document.getElementById('productCount').textContent = '-';
+                document.getElementById('customerCount').textContent = '-';
+                document.getElementById('purchaseAmount').textContent = '-';
+                document.getElementById('salesAmount').textContent = '-';
+                document.getElementById('profitAmount').textContent = '-';
+                document.getElementById('lowStockCount').textContent = '-';
+            }
+        }
+        
+        async function loadSalesChart(type, days) {
+            try {
+                const salesOrders = await api.getSalesOrders(days);
+                
+                if (type === 'month') {
+                    // 按月份统计
+                    const monthlyData = {};
+                    salesOrders.forEach(order => {
+                        const month = order.sale_date?.substring(0, 7) || '未知';
+                        if (!monthlyData[month]) monthlyData[month] = 0;
+                        monthlyData[month] += order.total_amount || 0;
+                    });
+                    
+                    const labels = Object.keys(monthlyData).sort();
+                    const data = labels.map(m => monthlyData[m]);
+                    
+                    createLineChart('salesChart', labels, data, '销售金额(元)');
+                } else {
+                    // 按品类统计
+                    const stock = await api.getStock();
+                    const categorySales = {};
+                    
+                    salesOrders.forEach(order => {
+                        const product = stock.find(p => p.product_id === order.product_id);
+                        const category = product?.category_name || '未知';
+                        if (!categorySales[category]) categorySales[category] = 0;
+                        categorySales[category] += order.total_amount || 0;
+                    });
+                    
+                    const labels = Object.keys(categorySales);
+                    const data = labels.map(c => categorySales[c]);
+                    
+                    createBarChart('salesChart', labels, data, '销售金额(元)');
+                }
+            } catch (error) {
+                console.error('Failed to load sales chart:', error);
+            }
+        }
+        
+        async function loadStockChart() {
+            try {
+                const stock = await api.getStock();
+                const categoryStock = {};
+                
+                stock.forEach(item => {
+                    const category = item.category_name || '未知';
+                    if (!categoryStock[category]) categoryStock[category] = 0;
+                    categoryStock[category] += item.stock || 0;
+                });
+                
+                const labels = Object.keys(categoryStock);
+                const data = labels.map(c => categoryStock[c]);
+                
+                createHorizontalBarChart('stockChart', labels, data, '库存数量');
+            } catch (error) {
+                console.error('Failed to load stock chart:', error);
+            }
+        }
+        
+        async function loadTopProductsChart(days) {
+            try {
+                const salesOrders = await api.getSalesOrders(days);
+                const stock = await api.getStock();
+                const productSales = {};
+                
+                salesOrders.forEach(order => {
+                    const product = stock.find(p => p.product_id === order.product_id);
+                    const name = product?.product_name || '未知';
+                    if (!productSales[name]) productSales[name] = 0;
+                    productSales[name] += (order.quantity || 0);
+                });
+                
+                // 取TOP10
+                const sorted = Object.entries(productSales).sort((a, b) => b[1] - a[1]).slice(0, 10);
+                const labels = sorted.map(item => item[0]);
+                const data = sorted.map(item => item[1]);
+                
+                createHorizontalBarChart('topProductsChart', labels, data, '销售数量');
+            } catch (error) {
+                console.error('Failed to load top products chart:', error);
+            }
+        }
+        
+        async function loadCategoryPieChart(days) {
+            try {
+                const salesOrders = await api.getSalesOrders(days);
+                const stock = await api.getStock();
+                const categorySales = {};
+                
+                salesOrders.forEach(order => {
+                    const product = stock.find(p => p.product_id === order.product_id);
+                    const category = product?.category_name || '未知';
+                    if (!categorySales[category]) categorySales[category] = 0;
+                    categorySales[category] += order.total_amount || 0;
+                });
+                
+                const labels = Object.keys(categorySales);
+                const data = labels.map(c => categorySales[c]);
+                
+                createPieChart('categoryPieChart', labels, data);
+            } catch (error) {
+                console.error('Failed to load category pie chart:', error);
+            }
+        }
+        
+        function createLineChart(canvasId, labels, data, label) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            if (salesChart) salesChart.destroy();
+            
+            salesChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        borderColor: '#4f46e5',
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '¥' + (value / 10000).toFixed(1) + '万';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createBarChart(canvasId, labels, data, label) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            if (salesChart) salesChart.destroy();
+            
+            const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+            
+            salesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        backgroundColor: labels.map((_, i) => colors[i % colors.length]),
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '¥' + (value / 10000).toFixed(1) + '万';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createHorizontalBarChart(canvasId, labels, data, label) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            
+            if (canvasId === 'stockChart' && stockChart) stockChart.destroy();
+            if (canvasId === 'topProductsChart' && topProductsChart) topProductsChart.destroy();
+            
+            const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1'];
+            
+            const chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        backgroundColor: labels.map((_, i) => colors[i % colors.length]),
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { beginAtZero: true }
+                    }
+                }
+            });
+            
+            if (canvasId === 'stockChart') stockChart = chart;
+            if (canvasId === 'topProductsChart') topProductsChart = chart;
+        }
+        
+        function createPieChart(canvasId, labels, data) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            if (categoryPieChart) categoryPieChart.destroy();
+            
+            const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
+            
+            categoryPieChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors.slice(0, labels.length),
+                        borderWidth: 0,
+                        hoverOffset: 10
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                padding: 15,
+                                usePointStyle: true
+                            }
+                        }
+                    },
+                    cutout: '60%'
+                }
+            });
+        }
+        
+        function switchSalesChart(type) {
+            document.querySelectorAll('.chart-card .tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            const days = parseInt(document.getElementById('timeRange').value) || 30;
+            loadSalesChart(type, days);
+        }
+        
+        async function loadLowStock() {
+            try {
+                const stock = await api.getStock();
+                const lowStock = stock.filter(item => item.stock < 10);
+                
+                const tbody = document.getElementById('lowStockTable');
+                if (lowStock.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #10b981;">🎉 暂无库存预警商品</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = lowStock.map(item => `
+                    <tr>
+                        <td>${item.product_name}</td>
+                        <td>${item.category_name || '-'}</td>
+                        <td style="color: #ef4444; font-weight: 600;">${item.stock}</td>
+                        <td>10</td>
+                        <td>${item.unit || '-'}</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load low stock:', error);
+            }
+        }
+        
+        async function loadRecentOrders(type, days) {
+            try {
+                document.querySelectorAll('.card:last-child .tab-btn').forEach(btn => btn.classList.remove('active'));
+                const orderTabs = document.querySelectorAll('.card:last-child .tab-btn');
+                orderTabs.forEach(btn => {
+                    const btnType = btn.textContent.trim() === '销售订单' ? 'sales' : 'purchase';
+                    if (btnType === type) {
+                        btn.classList.add('active');
+                    }
+                });
+                
+                const orders = type === 'sales' 
+                    ? await api.getSalesOrders(days)
+                    : await api.getPurchaseOrders(days);
+                
+                const stock = await api.getStock();
+                const customers = await api.getCustomers();
+                
+                const recentOrders = orders
+                    .sort((a, b) => new Date(b.sale_date || b.purchase_date) - new Date(a.sale_date || a.purchase_date))
+                    .slice(0, 8);
+                
+                const tbody = document.getElementById('recentOrdersTable');
+                
+                tbody.innerHTML = recentOrders.map(order => {
+                    const product = stock.find(p => p.product_id === order.product_id);
+                    const customer = customers.find(c => c.id === order.customer_id);
+                    const status = order.status === 'completed' 
+                        ? '<span class="status-badge completed">已完成</span>'
+                        : order.status === 'pending'
+                        ? '<span class="status-badge pending">待处理</span>'
+                        : '<span class="status-badge unpaid">未付款</span>';
+                    
+                    const date = order.sale_date || order.purchase_date;
+                    
+                    return `
+                        <tr>
+                            <td>${type === 'sales' ? 'SO' : 'PO'}${String(order.id).padStart(4, '0')}</td>
+                            <td>${customer?.name || '-'}</td>
+                            <td>${product?.product_name || '-'}</td>
+                            <td>${order.quantity}</td>
+                            <td>${formatCurrency(order.total_amount)}</td>
+                            <td>${status}</td>
+                            <td>${date?.substring(0, 10) || '-'}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Failed to load recent orders:', error);
+            }
+        }
+        
+        function formatCurrency(value) {
+            if (value === null || value === undefined) return '-';
+            return '¥' + parseFloat(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadCurrentUser();
+            await loadDashboard();
+        });
+    </script>
+    <style>
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 30px;
+            background: #1a1a2e;
+            border-bottom: 1px solid #3d3d5c;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .date-range select {
+            padding: 10px 15px;
+            border: 1px solid #3d3d5c;
+            border-radius: 8px;
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #ffffff;
+            cursor: pointer;
+        }
+        .date-range select option {
+            background: #1a1a2e;
+            color: #ffffff;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: #252542;
+            padding: 22px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+            border: 1px solid #3d3d5c;
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+        }
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        .stat-icon.blue { background: rgba(96, 165, 250, 0.2); color: #60a5fa; }
+        .stat-icon.green { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+        .stat-icon.orange { background: rgba(249, 115, 22, 0.2); color: #f97316; }
+        .stat-icon.red { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        .stat-icon.purple { background: rgba(168, 85, 247, 0.2); color: #a855f7; }
+        .stat-icon.yellow { background: rgba(234, 179, 8, 0.2); color: #eab308; }
+        .stat-content {
+            flex: 1;
+        }
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #b8b8d0;
+            margin-top: 2px;
+        }
+        .charts-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .chart-card {
+            background: #252542;
+            border-radius: 12px;
+            padding: 22px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+            border: 1px solid #3d3d5c;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #3d3d5c;
+        }
+        .card-header h3 {
+            margin: 0;
+            font-size: 17px;
+            color: #ffffff;
+            font-weight: 600;
+        }
+        .chart-tabs {
+            display: flex;
+            gap: 8px;
+        }
+        .tab-btn {
+            padding: 8px 14px;
+            border: 1px solid #3d3d5c;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #b8b8d0;
+        }
+        .tab-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        .chart-container {
+            height: 280px;
+        }
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge.warning {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+        }
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-badge.completed {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+        .status-badge.pending {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+        }
+        .status-badge.unpaid {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        /* AI智能体模块样式 */
+        .agent-float-btn {
+            position: fixed;
+            right: 30px;
+            bottom: 30px;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+            z-index: 999;
+            border: none;
+            color: white;
+        }
+        .agent-float-btn:hover {
+            transform: translateY(-4px) scale(1.1);
+            box-shadow: 0 12px 35px rgba(102, 126, 234, 0.5);
+        }
+        .agent-float-btn.active {
+            transform: rotate(45deg);
+        }
+        
+        .agent-panel {
+            position: fixed;
+            right: 30px;
+            bottom: 100px;
+            width: 400px;
+            max-height: 600px;
+            background: var(--dark-card);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--dark-border);
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            overflow: hidden;
+            animation: slideUp 0.3s ease;
+            transition: all 0.3s ease;
+        }
+        .agent-panel.show {
+            display: flex;
+        }
+        .agent-panel.maximized {
+            width: 90vw;
+            height: 90vh;
+            right: 5vw;
+            bottom: 5vh;
+            max-height: none;
+            border-radius: 12px;
+        }
+        
+        .agent-header {
+            padding: 20px;
+            background: linear-gradient(180deg, rgba(102, 126, 234, 0.15) 0%, transparent 100%);
+            border-bottom: 1px solid var(--dark-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .agent-header h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .agent-header-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .agent-close-btn,
+        .agent-maximize-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+        .agent-close-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        .agent-maximize-btn:hover {
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+        }
+        
+        .agent-switcher {
+            padding: 12px 20px;
+            background: rgba(0, 0, 0, 0.2);
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+        }
+        .agent-switcher::-webkit-scrollbar {
+            height: 4px;
+        }
+        .agent-switcher::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+        }
+        .agent-switcher::-webkit-scrollbar-thumb {
+            background: var(--dark-border);
+            border-radius: 2px;
+        }
+        .agent-tab {
+            padding: 8px 16px;
+            border: 1px solid var(--dark-border);
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .agent-tab:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .agent-tab.active {
+            background: var(--accent-color);
+            color: white;
+            border-color: var(--accent-color);
+        }
+        
+        .agent-chat-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            max-height: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .agent-chat-area::-webkit-scrollbar {
+            width: 6px;
+        }
+        .agent-chat-area::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+        .agent-chat-area::-webkit-scrollbar-thumb {
+            background: var(--dark-border);
+            border-radius: 3px;
+        }
+        
+        .chat-message {
+            display: flex;
+            gap: 10px;
+            max-width: 100%;
+        }
+        .chat-message.user {
+            justify-content: flex-end;
+        }
+        .chat-message.user .message-content {
+            background: var(--accent-color);
+            color: white;
+            border-radius: 12px 12px 0 12px;
+        }
+        .chat-message.bot {
+            justify-content: flex-start;
+        }
+        .chat-message.bot .message-content {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+            border-radius: 12px 12px 12px 0;
+        }
+        .chat-message .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .chat-message.user .message-avatar {
+            background: var(--accent-gradient);
+        }
+        .chat-message.bot .message-avatar {
+            background: rgba(102, 126, 234, 0.2);
+            color: var(--accent-color);
+        }
+        .chat-message .message-content {
+            padding: 12px 16px;
+            font-size: 14px;
+            line-height: 1.5;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .chat-message .message-time {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            text-align: right;
+        }
+        
+        .agent-input-area {
+            padding: 15px 20px;
+            border-top: 1px solid var(--dark-border);
+            display: flex;
+            gap: 10px;
+        }
+        .agent-input-area input {
+            flex: 1;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--dark-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        .agent-input-area input:focus {
+            border-color: var(--accent-color);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .agent-input-area input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+        .agent-input-area button {
+            padding: 12px 20px;
+            background: var(--accent-gradient);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .agent-input-area button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        .agent-input-area button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .agent-loading {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 12px 12px 12px 0;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        .agent-loading .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+        .agent-loading .typing-dots span {
+            width: 6px;
+            height: 6px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out both;
+        }
+        .agent-loading .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .agent-loading .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        
+        .agent-welcome {
+            text-align: center;
+            padding: 30px 20px;
+            color: var(--text-secondary);
+        }
+        .agent-welcome .welcome-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .agent-welcome h4 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .agent-welcome p {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .agent-welcome .quick-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .agent-welcome .quick-btn {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--dark-border);
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-secondary);
+        }
+        .agent-welcome .quick-btn:hover {
+            background: rgba(102, 126, 234, 0.15);
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+    </style>
+    
+    <!-- AI智能体模块 -->
+    <button class="agent-float-btn" onclick="toggleAgentPanel()">🤖</button>
+    
+    <div class="agent-panel" id="agentPanel">
+        <div class="agent-header">
+            <h3>🤖 智能助手</h3>
+            <div class="agent-header-controls">
+                <button class="agent-maximize-btn" onclick="toggleAgentMaximize()" title="放大/缩小">⛶</button>
+                <button class="agent-close-btn" onclick="toggleAgentPanel()">✕</button>
+            </div>
+        </div>
+        
+        <div class="agent-switcher">
+            <button class="agent-tab active" data-agent="general" onclick="switchAgent('general')">
+                <span>🎯</span> 通用助手
+            </button>
+            <button class="agent-tab" data-agent="inventory" onclick="switchAgent('inventory')">
+                <span>📦</span> 库存专家
+            </button>
+            <button class="agent-tab" data-agent="sales" onclick="switchAgent('sales')">
+                <span>📈</span> 销售顾问
+            </button>
+            <button class="agent-tab" data-agent="report" onclick="switchAgent('report')">
+                <span>📊</span> 报表分析
+            </button>
+        </div>
+        
+        <div class="agent-chat-area" id="agentChatArea">
+            <div class="agent-welcome" id="agentWelcome">
+                <div class="welcome-icon">🎯</div>
+                <h4>通用智能助手</h4>
+                <p>我可以帮您查询数据、分析报表、管理库存等。<br>有什么需要帮助的吗？</p>
+                <div class="quick-actions">
+                    <button class="quick-btn" onclick="sendQuickMessage('查询库存预警商品')">查询库存预警</button>
+                    <button class="quick-btn" onclick="sendQuickMessage('统计今日销售额')">今日销售额</button>
+                    <button class="quick-btn" onclick="sendQuickMessage('分析销售趋势')">销售趋势分析</button>
+                    <button class="quick-btn" onclick="sendQuickMessage('列出热门商品')">热门商品TOP10</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="agent-input-area">
+            <input type="text" id="agentInput" placeholder="输入您的问题..." onkeypress="handleAgentInputKey(event)">
+            <button id="agentSendBtn" onclick="sendAgentMessage()">发送</button>
+        </div>
+    </div>
+    
+    <script>
+        let agentPanelOpen = false;
+        let currentAgent = 'general';
+        let agentMaximized = false;
+        // 为每个智能体维护独立的对话历史
+        let agentConversations = {
+            general: [],
+            inventory: [],
+            sales: [],
+            report: []
+        };
+        
+        const agentConfigs = {
+            general: {
+                name: '通用助手',
+                icon: '🎯',
+                description: '综合智能助手，提供全面的业务支持',
+                welcome: '我可以帮您查询数据、分析报表、管理库存等。有什么需要帮助的吗？'
+            },
+            inventory: {
+                name: '库存专家',
+                icon: '📦',
+                description: '专业库存管理咨询',
+                welcome: '我是库存管理专家，可以帮您查询库存、设置预警、分析库存状况。'
+            },
+            sales: {
+                name: '销售顾问',
+                icon: '📈',
+                description: '销售数据分析与建议',
+                welcome: '我是销售顾问，可以帮您分析销售数据、预测趋势、优化营销策略。'
+            },
+            report: {
+                name: '报表分析',
+                icon: '📊',
+                description: '深度业务报表分析',
+                welcome: '我是报表分析师，可以帮您生成各类业务报表、进行数据挖掘和可视化分析。'
+            }
+        };
+        
+        function toggleAgentPanel() {
+            const panel = document.getElementById('agentPanel');
+            const btn = document.querySelector('.agent-float-btn');
+            
+            agentPanelOpen = !agentPanelOpen;
+            
+            if (agentPanelOpen) {
+                panel.classList.add('show');
+                btn.classList.add('active');
+            } else {
+                panel.classList.remove('show');
+                btn.classList.remove('active');
+            }
+        }
+        
+        function toggleAgentMaximize() {
+            const panel = document.getElementById('agentPanel');
+            const maximizeBtn = document.querySelector('.agent-maximize-btn');
+            
+            agentMaximized = !agentMaximized;
+            
+            if (agentMaximized) {
+                panel.classList.add('maximized');
+                maximizeBtn.textContent = '⛷';
+                maximizeBtn.title = '缩小窗口';
+            } else {
+                panel.classList.remove('maximized');
+                maximizeBtn.textContent = '⛶';
+                maximizeBtn.title = '放大窗口';
+            }
+        }
+        
+        function switchAgent(agentType) {
+            currentAgent = agentType;
+            
+            document.querySelectorAll('.agent-tab').forEach(tab => {
+                tab.classList.remove('active');
+                if (tab.dataset.agent === agentType) {
+                    tab.classList.add('active');
+                }
+            });
+            
+            const config = agentConfigs[agentType];
+            const chatArea = document.getElementById('agentChatArea');
+            
+            // 清空聊天区域并重新渲染
+            chatArea.innerHTML = '';
+            
+            // 如果该智能体有对话历史，显示历史记录
+            if (agentConversations[agentType] && agentConversations[agentType].length > 0) {
+                agentConversations[agentType].forEach(msg => {
+                    addMessageToChatArea(msg.role, msg.content, msg.time, false);
+                });
+            } else {
+                // 显示欢迎界面
+                const welcomeArea = document.getElementById('agentWelcome').cloneNode(true);
+                welcomeArea.innerHTML = `
+                    <div class="welcome-icon">${config.icon}</div>
+                    <h4>${config.name}</h4>
+                    <p>${config.welcome}</p>
+                    <div class="quick-actions">
+                        ${getQuickActions(agentType)}
+                    </div>
+                `;
+                welcomeArea.style.display = 'block';
+                chatArea.appendChild(welcomeArea);
+            }
+            
+            // 滚动到底部
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+        
+        function addMessageToChatArea(role, content, time, saveToHistory = true) {
+            const chatArea = document.getElementById('agentChatArea');
+            
+            // 移除欢迎界面
+            const welcomeArea = document.getElementById('agentWelcome');
+            if (welcomeArea) {
+                welcomeArea.remove();
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${role}`;
+            
+            const timeStr = time ? new Date(time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            
+            const avatar = role === 'user' ? '👤' : agentConfigs[currentAgent].icon;
+            
+            messageDiv.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div class="message-content">
+                    ${content}
+                    <div class="message-time">${timeStr}</div>
+                </div>
+            `;
+            
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+            
+            // 保存到对应智能体的历史记录
+            if (saveToHistory) {
+                agentConversations[currentAgent].push({
+                    role: role,
+                    content: content,
+                    time: new Date().toISOString()
+                });
+            }
+        }
+        
+        function addMessage(role, content) {
+            addMessageToChatArea(role, content, null, true);
+        }
+        
+        function getQuickActions(agentType) {
+            const actions = {
+                general: [
+                    { label: '查询库存预警', msg: '查询库存预警商品' },
+                    { label: '今日销售额', msg: '统计今日销售额' },
+                    { label: '销售趋势分析', msg: '分析销售趋势' },
+                    { label: '热门商品TOP10', msg: '列出热门商品' }
+                ],
+                inventory: [
+                    { label: '库存不足商品', msg: '列出库存低于10件的商品' },
+                    { label: '库存盘点', msg: '进行库存盘点' },
+                    { label: '库存预警设置', msg: '如何设置库存预警' },
+                    { label: '库存统计', msg: '统计各类别库存数量' }
+                ],
+                sales: [
+                    { label: '销售排行榜', msg: '列出销售排行榜' },
+                    { label: '销售数据分析', msg: '分析销售数据' },
+                    { label: '客户购买分析', msg: '分析客户购买行为' },
+                    { label: '销售预测', msg: '预测下月销售额' }
+                ],
+                report: [
+                    { label: '生成日报', msg: '生成今日业务日报' },
+                    { label: '月度报表', msg: '生成月度销售报表' },
+                    { label: '利润分析', msg: '分析利润率' },
+                    { label: '数据可视化', msg: '生成可视化图表' }
+                ]
+            };
+            
+            return actions[agentType].map(action => 
+                `<button class="quick-btn" onclick="sendQuickMessage('${action.msg}')">${action.label}</button>`
+            ).join('');
+        }
+        
+        function sendQuickMessage(message) {
+            document.getElementById('agentInput').value = message;
+            sendAgentMessage();
+        }
+        
+        function handleAgentInputKey(event) {
+            if (event.key === 'Enter') {
+                sendAgentMessage();
+            }
+        }
+        
+        async function sendAgentMessage() {
+            const input = document.getElementById('agentInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            input.value = '';
+            
+            addMessage('user', message);
+            
+            const sendBtn = document.getElementById('agentSendBtn');
+            sendBtn.disabled = true;
+            
+            addLoading();
+            
+            try {
+                const response = await api.queryAgent(currentAgent, message);
+                
+                removeLoading();
+                
+                if (response && response.response) {
+                    addMessage('bot', response.response);
+                } else {
+                    addMessage('bot', '抱歉，我暂时无法回答这个问题。');
+                }
+            } catch (error) {
+                removeLoading();
+                console.error('Agent query failed:', error);
+                addMessage('bot', '网络繁忙，请稍后再试。');
+            } finally {
+                sendBtn.disabled = false;
+                scrollToBottom();
+            }
+        }
+        
+        function addLoading() {
+            const chatArea = document.getElementById('agentChatArea');
+            const welcome = document.getElementById('agentWelcome');
+            if (welcome) welcome.remove();
+            
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'chat-message bot';
+            loadingDiv.id = 'agentLoading';
+            
+            loadingDiv.innerHTML = `
+                <div class="message-avatar">${agentConfigs[currentAgent].icon}</div>
+                <div class="agent-loading">
+                    <span>正在思考</span>
+                    <div class="typing-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            `;
+            
+            chatArea.appendChild(loadingDiv);
+            scrollToBottom();
+        }
+        
+        function removeLoading() {
+            const loading = document.getElementById('agentLoading');
+            if (loading) loading.remove();
+        }
+        
+        function scrollToBottom() {
+            const chatArea = document.getElementById('agentChatArea');
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

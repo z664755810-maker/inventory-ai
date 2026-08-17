@@ -1,0 +1,571 @@
+import sqlite3
+import os
+import sys
+import argparse
+import time
+from typing import List, Dict, Tuple, Optional
+
+try:
+    import pymysql
+except ImportError:
+    pymysql = None
+
+MYSQL_RESERVED_WORDS = {
+    'pending', 'issue', 'role', 'status', 'order', 'user', 'group', 'desc', 'asc',
+    'table', 'column', 'index', 'key', 'primary', 'foreign', 'default', 'null',
+    'not', 'unique', 'auto_increment', 'engine', 'charset', 'collate', 'comment',
+    'check', 'constraint', 'references', 'on', 'cascade', 'set', 'where', 'having',
+    'limit', 'offset', 'union', 'join', 'left', 'right', 'inner', 'outer', 'full',
+    'cross', 'natural', 'using', 'as', 'distinct', 'from', 'select', 'insert',
+    'update', 'delete', 'into', 'values', 'set', 'and', 'or', 'between', 'like',
+    'in', 'is', 'exists', 'case', 'when', 'then', 'else', 'end', 'if', 'elseif',
+    'while', 'do', 'repeat', 'until', 'loop', 'leave', 'iterate', 'call', 'return',
+    'declare', 'begin', 'commit', 'rollback', 'savepoint', 'release', 'lock',
+    'unlock', 'flush', 'alter', 'drop', 'create', 'rename', 'truncate', 'replace',
+    'load', 'data', 'infile', 'outfile', 'into', 'dumpfile', 'master', 'slave',
+    'reset', 'change', 'modify', 'add', 'drop', 'rename', 'group_concat',
+    'substring_index', 'find_in_set', 'field', 'elt', 'concat', 'concat_ws',
+    'ifnull', 'nullif', 'coalesce', 'cast', 'convert', 'binary', 'char', 'date',
+    'datetime', 'decimal', 'double', 'float', 'int', 'real', 'time', 'timestamp',
+    'varchar', 'tinyint', 'smallint', 'mediumint', 'bigint', 'tinytext', 'text',
+    'mediumtext', 'longtext', 'tinyblob', 'blob', 'mediumblob', 'longblob',
+    'enum', 'set', 'bit', 'bool', 'boolean', 'year', 'unsigned', 'zerofill',
+    'binary', 'varbinary', 'decimal', 'precision', 'scale', 'default', 'current',
+    'curtime', 'current_time', 'curdate', 'current_date', 'now', 'sysdate',
+    'current_timestamp', 'localtime', 'localtimestamp', 'utc_date', 'utc_time',
+    'utc_timestamp', 'date_add', 'date_sub', 'adddate', 'subdate', 'addtime',
+    'subtime', 'datediff', 'timediff', 'date_format', 'time_format', 'str_to_date',
+    'time_to_sec', 'sec_to_time', 'unix_timestamp', 'from_unixtime', 'week',
+    'weekday', 'yearweek', 'dayofweek', 'dayofmonth', 'dayofyear', 'month',
+    'monthname', 'dayname', 'quarter', 'hour', 'minute', 'second', 'microsecond',
+    'extract', 'to_days', 'from_days', 'maketime', 'makedate', 'period_add',
+    'period_diff', 'unix_timestamp', 'version', 'connection_id', 'database',
+    'schema', 'user', 'current_user', 'session_user', 'system_user', 'last_insert_id',
+    'found_rows', 'row_count', 'affected_rows', 'insert_id', 'identity',
+    'uuid', 'uuid_short', 'md5', 'sha1', 'sha2', 'password', 'old_password',
+    'encode', 'decode', 'aes_encrypt', 'aes_decrypt', 'compress', 'uncompress',
+    'uncompress_length', 'crc32', 'benchmark', 'conv', 'format', 'inet_aton',
+    'inet_ntoa', 'inet_ntop', 'inet_pton', 'is_ipv4', 'is_ipv6', 'password',
+    'format', 'space', 'repeat', 'replace', 'reverse', 'char_length',
+    'character_length', 'length', 'octet_length', 'locate', 'position', 'instr',
+    'find_in_set', 'field', 'elt', 'substring', 'substr', 'left', 'right',
+    'trim', 'ltrim', 'rtrim', 'lower', 'lcase', 'upper', 'ucase', 'soundex',
+    'substring_index', 'concat', 'concat_ws', 'group_concat', 'quote', 'unhex',
+    'hex', 'ascii', 'bin', 'oct', 'hex', 'conv', 'ord', 'chr', 'strcmp',
+    'space', 'replace', 'regexp', 'rlike', 'like', 'not like', 'between',
+    'is null', 'is not null', 'in', 'not in', 'exists', 'not exists',
+    'case', 'when', 'then', 'else', 'end', 'if', 'elseif', 'while', 'do',
+    'repeat', 'until', 'loop', 'leave', 'iterate', 'call', 'return', 'declare',
+    'begin', 'commit', 'rollback', 'savepoint', 'release', 'lock', 'unlock',
+    'flush', 'alter', 'drop', 'create', 'rename', 'truncate', 'replace', 'load',
+    'data', 'infile', 'outfile', 'into', 'dumpfile', 'master', 'slave', 'reset',
+    'change', 'modify', 'add', 'drop', 'rename', 'group_concat', 'substring_index',
+    'find_in_set', 'field', 'elt', 'concat', 'concat_ws', 'ifnull', 'nullif',
+    'coalesce', 'cast', 'convert', 'binary', 'char', 'date', 'datetime', 'decimal',
+    'double', 'float', 'int', 'real', 'time', 'timestamp', 'varchar', 'tinyint',
+    'smallint', 'mediumint', 'bigint', 'tinytext', 'text', 'mediumtext', 'longtext',
+    'tinyblob', 'blob', 'mediumblob', 'longblob', 'enum', 'set', 'bit', 'bool',
+    'boolean', 'year', 'unsigned', 'zerofill', 'binary', 'varbinary', 'decimal',
+    'precision', 'scale'
+}
+
+def escape_mysql_identifier(name: str) -> str:
+    if name.lower() in MYSQL_RESERVED_WORDS:
+        return f"`{name}`"
+    return f"`{name}`"
+
+def get_sqlite_tables(sqlite_cursor) -> List[str]:
+    sqlite_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    return [table[0] for table in sqlite_cursor.fetchall()]
+
+def get_table_columns(sqlite_cursor, table_name: str):
+    sqlite_cursor.execute(f"PRAGMA table_info({table_name})")
+    return sqlite_cursor.fetchall()
+
+def sqlite_to_mysql_type(sqlite_type: str, column_name: str = '') -> Tuple[str, bool]:
+    sqlite_type = sqlite_type.upper()
+    
+    if sqlite_type.startswith('VARCHAR'):
+        if '(' in sqlite_type and ')' in sqlite_type:
+            return (sqlite_type, False)
+        return ('VARCHAR(255)', False)
+    
+    if sqlite_type.startswith('DECIMAL'):
+        if '(' in sqlite_type and ')' in sqlite_type:
+            return (sqlite_type, False)
+        return ('DECIMAL(12,2)', False)
+    
+    type_mapping = {
+        'INTEGER': ('INT', False),
+        'BIGINT': ('BIGINT', False),
+        'TEXT': ('TEXT', True),
+        'DATETIME': ('DATETIME', False),
+        'DATE': ('DATE', False),
+        'TIME': ('TIME', False),
+        'FLOAT': ('FLOAT', False),
+        'REAL': ('DOUBLE', False),
+        'BOOLEAN': ('TINYINT(1)', False),
+        'BLOB': ('LONGBLOB', True),
+        'CLOB': ('TEXT', True)
+    }
+    for sqlite_t, (mysql_t, no_default) in type_mapping.items():
+        if sqlite_type.startswith(sqlite_t):
+            return (mysql_t, no_default)
+    return ('VARCHAR(255)', False)
+
+def create_mysql_table(sqlite_cursor, mysql_cursor, table_name: str) -> Tuple[bool, str]:
+    try:
+        columns = get_table_columns(sqlite_cursor, table_name)
+        
+        column_defs = []
+        primary_keys = []
+        has_auto_increment = False
+        
+        for col in columns:
+            col_name = col[1]
+            col_type = col[2].upper()
+            not_null = col[3] == 1
+            default_val = col[4]
+            is_pk = col[5] == 1
+            
+            mysql_type, no_default = sqlite_to_mysql_type(col_type, col_name)
+            
+            escaped_col_name = escape_mysql_identifier(col_name)
+            
+            if is_pk:
+                primary_keys.append(escaped_col_name)
+                if col_type == 'INTEGER':
+                    column_defs.append(f"{escaped_col_name} {mysql_type} PRIMARY KEY AUTO_INCREMENT")
+                    has_auto_increment = True
+                else:
+                    column_defs.append(f"{escaped_col_name} {mysql_type} PRIMARY KEY")
+            else:
+                parts = [f"{escaped_col_name} {mysql_type}"]
+                if not_null:
+                    parts.append('NOT NULL')
+                if default_val is not None and str(default_val).strip() != '' and not no_default:
+                    default_str = str(default_val).strip()
+                    
+                    if default_str.startswith("'") and default_str.endswith("'"):
+                        default_str = default_str[1:-1]
+                    
+                    if col_type in ['DATETIME', 'DATE', 'TIME']:
+                        parts.append(f"DEFAULT '{default_str}'")
+                    elif col_type == 'BOOLEAN':
+                        parts.append(f"DEFAULT {default_str}")
+                    else:
+                        parts.append(f"DEFAULT '{default_str}'")
+                elif not_null and default_val is None:
+                    if col_type == 'TEXT' or col_type == 'BLOB':
+                        pass
+                    elif col_type.startswith('INT') or col_type.startswith('DECIMAL') or col_type.startswith('FLOAT') or col_type.startswith('DOUBLE') or col_type.startswith('REAL'):
+                        parts.append("DEFAULT 0")
+                    else:
+                        parts.append("DEFAULT ''")
+                column_defs.append(' '.join(parts))
+        
+        if primary_keys and len(primary_keys) > 1 and not has_auto_increment:
+            column_defs.append(f"PRIMARY KEY ({', '.join(primary_keys)})")
+        
+        escaped_table_name = escape_mysql_identifier(table_name)
+        create_table_sql = f"CREATE TABLE IF NOT EXISTS {escaped_table_name} ({', '.join(column_defs)}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        
+        print(f"  创建表: {table_name}")
+        mysql_cursor.execute(create_table_sql)
+        return (True, f"表 {table_name} 创建成功")
+    except Exception as e:
+        error_msg = f"创建表 {table_name} 失败: {str(e)}"
+        print(f"    ❌ {error_msg}")
+        return (False, error_msg)
+
+def migrate_table_data(sqlite_cursor, mysql_cursor, table_name: str, batch_size: int = 100) -> Tuple[bool, str]:
+    try:
+        sqlite_cursor.execute(f"SELECT * FROM {table_name}")
+        rows = sqlite_cursor.fetchall()
+        
+        if not rows:
+            print(f"    无数据需要迁移")
+            return (True, "无数据需要迁移")
+        
+        columns = get_table_columns(sqlite_cursor, table_name)
+        col_names = [escape_mysql_identifier(col[1]) for col in columns]
+        placeholders = ', '.join(['%s'] * len(columns))
+        
+        escaped_table_name = escape_mysql_identifier(table_name)
+        insert_sql = f"INSERT INTO {escaped_table_name} ({', '.join(col_names)}) VALUES ({placeholders})"
+        
+        total_rows = len(rows)
+        success_count = 0
+        failed_rows = []
+        
+        for i in range(0, total_rows, batch_size):
+            batch = rows[i:i + batch_size]
+            try:
+                mysql_cursor.executemany(insert_sql, batch)
+                success_count += len(batch)
+                print(f"    已插入 {min(i + batch_size, total_rows)}/{total_rows} 条记录", end='\r')
+            except Exception as e:
+                for j, row in enumerate(batch):
+                    try:
+                        mysql_cursor.execute(insert_sql, row)
+                        success_count += 1
+                    except Exception as row_e:
+                        failed_rows.append((i + j, str(row_e)))
+                print(f"    批量插入失败，正在逐条处理...")
+        
+        print(f"    ✅ 成功插入 {success_count}/{total_rows} 条记录")
+        
+        if failed_rows:
+            print(f"    ⚠️  {len(failed_rows)} 条记录插入失败:")
+            for idx, err in failed_rows[:5]:
+                print(f"      - 行 {idx + 1}: {err}")
+            if len(failed_rows) > 5:
+                print(f"      ...还有 {len(failed_rows) - 5} 条失败记录")
+        
+        return (success_count == total_rows, f"成功迁移 {success_count}/{total_rows} 条记录")
+    
+    except Exception as e:
+        error_msg = f"数据迁移失败: {str(e)}"
+        print(f"    ❌ {error_msg}")
+        return (False, error_msg)
+
+def retry_operation(operation, max_retries: int = 3, delay: float = 1.0, *args, **kwargs):
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            return operation(*args, **kwargs)
+        except Exception as e:
+            last_error = e
+            print(f"    ⚠️  操作失败(第 {attempt + 1}/{max_retries} 次尝试): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(delay * (2 ** attempt))
+    raise last_error
+
+def migrate_sqlite_to_mysql(sqlite_db_path: str, mysql_host: str, mysql_user: str, 
+                           mysql_password: str, mysql_db: str, overwrite: bool = False,
+                           batch_size: int = 100, max_retries: int = 3):
+    print("=" * 70)
+    print("SQLite 到 MySQL 数据库迁移工具")
+    print("版本: 2.0 (修复版)")
+    print("=" * 70)
+    print()
+    
+    if not os.path.exists(sqlite_db_path):
+        print(f"❌ 错误：SQLite数据库文件不存在: {sqlite_db_path}")
+        return False
+    
+    print(f"📂 源数据库: {sqlite_db_path}")
+    print(f"📊 目标数据库: mysql://{mysql_user}@{mysql_host}/{mysql_db}")
+    print(f"⚙️  批量大小: {batch_size}")
+    print(f"🔄 最大重试次数: {max_retries}")
+    print()
+    
+    try:
+        print("🔌 正在连接SQLite数据库...")
+        sqlite_conn = sqlite3.connect(sqlite_db_path)
+        sqlite_conn.text_factory = str
+        sqlite_cursor = sqlite_conn.cursor()
+        print("   ✅ SQLite连接成功")
+    except Exception as e:
+        print(f"   ❌ SQLite连接失败: {e}")
+        return False
+    
+    try:
+        print("🔌 正在连接MySQL数据库...")
+        mysql_conn = pymysql.connect(
+            host=mysql_host,
+            user=mysql_user,
+            password=mysql_password,
+            database=mysql_db,
+            charset='utf8mb4',
+            cursorclass=pymysql.cursors.DictCursor,
+            connect_timeout=10,
+            autocommit=False
+        )
+        mysql_cursor = mysql_conn.cursor()
+        print("   ✅ MySQL连接成功")
+    except Exception as e:
+        print(f"   ❌ MySQL连接失败: {e}")
+        sqlite_conn.close()
+        return False
+    
+    try:
+        tables = get_sqlite_tables(sqlite_cursor)
+        print(f"\n📋 发现 {len(tables)} 个表需要迁移:")
+        for table in tables:
+            print(f"   - {table}")
+        
+        if overwrite:
+            print("\n⚠️  正在清空目标数据库中已存在的表...")
+            for table in tables:
+                try:
+                    escaped_table = escape_mysql_identifier(table)
+                    mysql_cursor.execute(f"DROP TABLE IF EXISTS {escaped_table}")
+                    print(f"   ✅ 已删除表: {table}")
+                except Exception as e:
+                    print(f"   ⚠️  删除表 {table} 时出错: {e}")
+            mysql_conn.commit()
+        
+        print("\n🚀 开始迁移表结构...")
+        table_results = []
+        for table in tables:
+            try:
+                success, message = retry_operation(
+                    create_mysql_table, 
+                    max_retries=max_retries, 
+                    sqlite_cursor=sqlite_cursor, 
+                    mysql_cursor=mysql_cursor, 
+                    table_name=table
+                )
+                table_results.append((table, success, message))
+            except Exception as e:
+                table_results.append((table, False, str(e)))
+        
+        print("\n📦 开始迁移数据...")
+        data_results = []
+        for table in tables:
+            try:
+                success, message = retry_operation(
+                    migrate_table_data, 
+                    max_retries=max_retries, 
+                    sqlite_cursor=sqlite_cursor, 
+                    mysql_cursor=mysql_cursor, 
+                    table_name=table,
+                    batch_size=batch_size
+                )
+                data_results.append((table, success, message))
+            except Exception as e:
+                data_results.append((table, False, str(e)))
+        
+        mysql_conn.commit()
+        print("\n🎉 数据库迁移完成！")
+        
+        print("\n📊 迁移统计:")
+        print("-" * 50)
+        success_tables = sum(1 for _, r, _ in table_results if r)
+        success_data = sum(1 for _, r, _ in data_results if r)
+        print(f"  表结构创建: {success_tables}/{len(table_results)} 成功")
+        print(f"  数据迁移: {success_data}/{len(data_results)} 成功")
+        
+        failed_tables = [(t, m) for t, r, m in table_results if not r]
+        if failed_tables:
+            print("\n❌ 失败的表:")
+            for table, msg in failed_tables:
+                print(f"   - {table}: {msg}")
+        
+        success_tables_list = [(t, m) for t, r, m in table_results if r]
+        success_data_list = [(t, m) for t, r, m in data_results if r]
+        
+        if success_tables_list:
+            print("\n✅ 成功的表:")
+            for table, msg in success_tables_list:
+                print(f"   - {table}: {msg}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"\n❌ 迁移过程中出错: {e}")
+        print("   正在回滚...")
+        mysql_conn.rollback()
+        return False
+    finally:
+        sqlite_conn.close()
+        mysql_conn.close()
+        print("\n🔌 数据库连接已关闭")
+
+def export_sql_to_file(sqlite_db_path: str, output_file: str):
+    print("\n[INFO] 正在导出SQL到文件: {}".format(output_file))
+    
+    if not os.path.exists(sqlite_db_path):
+        print("[ERROR] 错误：SQLite数据库文件不存在: {}".format(sqlite_db_path))
+        return False
+    
+    try:
+        sqlite_conn = sqlite3.connect(sqlite_db_path)
+        sqlite_conn.text_factory = str
+        sqlite_cursor = sqlite_conn.cursor()
+        
+        tables = get_sqlite_tables(sqlite_cursor)
+        
+        sql_lines = []
+        sql_lines.append("-- ==============================================")
+        sql_lines.append("-- 京东电子商品物流系统 - 数据库SQL导出文件")
+        sql_lines.append("-- 版本: 2.0 (修复版)")
+        sql_lines.append("-- ==============================================")
+        sql_lines.append("")
+        
+        for table in tables:
+            columns = get_table_columns(sqlite_cursor, table)
+            
+            column_defs = []
+            has_auto_increment = False
+            
+            for col in columns:
+                col_name = col[1]
+                col_type = col[2].upper()
+                not_null = col[3] == 1
+                default_val = col[4]
+                is_pk = col[5] == 1
+                
+                mysql_type, no_default = sqlite_to_mysql_type(col_type, col_name)
+                
+                escaped_col_name = escape_mysql_identifier(col_name)
+                
+                if is_pk:
+                    if col_type == 'INTEGER':
+                        column_defs.append(f"{escaped_col_name} {mysql_type} PRIMARY KEY AUTO_INCREMENT")
+                        has_auto_increment = True
+                    else:
+                        column_defs.append(f"{escaped_col_name} {mysql_type} PRIMARY KEY")
+                else:
+                    parts = [f"{escaped_col_name} {mysql_type}"]
+                    if not_null:
+                        parts.append('NOT NULL')
+                    if default_val is not None and str(default_val).strip() != '' and not no_default:
+                        default_str = str(default_val).strip()
+                        
+                        if default_str.startswith("'") and default_str.endswith("'"):
+                            default_str = default_str[1:-1]
+                        
+                        if col_type in ['DATETIME', 'DATE', 'TIME']:
+                            parts.append(f"DEFAULT '{default_str}'")
+                        elif col_type == 'BOOLEAN':
+                            parts.append(f"DEFAULT {default_str}")
+                        else:
+                            parts.append(f"DEFAULT '{default_str}'")
+                    elif not_null and default_val is None:
+                        if col_type == 'TEXT' or col_type == 'BLOB':
+                            pass
+                        elif col_type.startswith('INT') or col_type.startswith('DECIMAL') or col_type.startswith('FLOAT') or col_type.startswith('DOUBLE') or col_type.startswith('REAL'):
+                            parts.append("DEFAULT 0")
+                        else:
+                            parts.append("DEFAULT ''")
+                    column_defs.append(' '.join(parts))
+            
+            escaped_table_name = escape_mysql_identifier(table)
+            create_table_sql = f"CREATE TABLE IF NOT EXISTS {escaped_table_name} ({', '.join(column_defs)}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"
+            sql_lines.append(f"-- 创建表: {table}")
+            sql_lines.append(create_table_sql)
+            sql_lines.append("")
+            
+            sqlite_cursor.execute(f"SELECT * FROM {table}")
+            rows = sqlite_cursor.fetchall()
+            
+            if rows:
+                col_names = [escape_mysql_identifier(col[1]) for col in columns]
+                
+                for row in rows:
+                    values = []
+                    for val in row:
+                        if val is None:
+                            values.append('NULL')
+                        elif isinstance(val, str):
+                            val = val.replace("'", "\\'").replace('\n', '\\n').replace('\r', '\\r')
+                            values.append(f"'{val}'")
+                        else:
+                            values.append(str(val))
+                    
+                    insert_sql = f"INSERT INTO {escaped_table_name} ({', '.join(col_names)}) VALUES ({', '.join(values)});"
+                    sql_lines.append(insert_sql)
+                sql_lines.append("")
+        
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(sql_lines))
+        
+        print("[SUCCESS] SQL文件导出成功，共 {} 行".format(len(sql_lines)))
+        sqlite_conn.close()
+        return True
+        
+    except Exception as e:
+        print(f"❌ 导出失败: {e}")
+        return False
+
+def validate_migration(sqlite_db_path: str, mysql_host: str, mysql_user: str, 
+                      mysql_password: str, mysql_db: str) -> bool:
+    print("\n🔍 正在验证迁移结果...")
+    
+    try:
+        sqlite_conn = sqlite3.connect(sqlite_db_path)
+        sqlite_cursor = sqlite_conn.cursor()
+        
+        mysql_conn = pymysql.connect(
+            host=mysql_host,
+            user=mysql_user,
+            password=mysql_password,
+            database=mysql_db,
+            charset='utf8mb4'
+        )
+        mysql_cursor = mysql_conn.cursor()
+        
+        sqlite_tables = get_sqlite_tables(sqlite_cursor)
+        
+        all_valid = True
+        for table in sqlite_tables:
+            sqlite_cursor.execute(f"SELECT COUNT(*) FROM {table}")
+            sqlite_count = sqlite_cursor.fetchone()[0]
+            
+            escaped_table = escape_mysql_identifier(table)
+            mysql_cursor.execute(f"SELECT COUNT(*) FROM {escaped_table}")
+            mysql_count = mysql_cursor.fetchone()[0]
+            
+            if sqlite_count == mysql_count:
+                print(f"   ✅ {table}: {sqlite_count} 条记录 (一致)")
+            else:
+                print(f"   ❌ {table}: SQLite={sqlite_count}, MySQL={mysql_count} (不一致)")
+                all_valid = False
+        
+        sqlite_conn.close()
+        mysql_conn.close()
+        
+        if all_valid:
+            print("\n✅ 所有表数据验证通过！")
+        else:
+            print("\n❌ 部分表数据验证失败！")
+        
+        return all_valid
+    
+    except Exception as e:
+        print(f"❌ 验证失败: {e}")
+        return False
+
+def main():
+    parser = argparse.ArgumentParser(description='SQLite到MySQL数据库迁移工具 (修复版)')
+    parser.add_argument('--sqlite', help='SQLite数据库文件路径', default=None)
+    parser.add_argument('--host', help='MySQL主机地址', default='localhost')
+    parser.add_argument('--user', help='MySQL用户名', default='root')
+    parser.add_argument('--password', help='MySQL密码', default='')
+    parser.add_argument('--db', help='目标MySQL数据库名', default='inventory')
+    parser.add_argument('--overwrite', action='store_true', help='覆盖已存在的表')
+    parser.add_argument('--export', help='导出SQL到文件路径', default=None)
+    parser.add_argument('--batch', type=int, default=100, help='批量插入大小')
+    parser.add_argument('--retries', type=int, default=3, help='最大重试次数')
+    parser.add_argument('--validate', action='store_true', help='迁移后验证数据一致性')
+    
+    args = parser.parse_args()
+    
+    sqlite_db = args.sqlite
+    if not sqlite_db:
+        sqlite_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'inventory.db')
+    
+    if args.export:
+        export_sql_to_file(sqlite_db, args.export)
+    else:
+        if not args.password:
+            print("⚠️  警告：未提供MySQL密码，将尝试无密码连接")
+        
+        success = migrate_sqlite_to_mysql(
+            sqlite_db,
+            args.host,
+            args.user,
+            args.password,
+            args.db,
+            args.overwrite,
+            args.batch,
+            args.retries
+        )
+        
+        if success and args.validate:
+            validate_migration(sqlite_db, args.host, args.user, args.password, args.db)
+
+if __name__ == '__main__':
+    main()

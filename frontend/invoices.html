@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>京东电子商品物流系统 - 发票管理</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">📦</div>
+                    <h1>京东电子商品物流系统</h1>
+                </div>
+            </div>
+            <div class="sidebar-menu">
+                <ul>
+                    <li><a href="index.html"><i>🏠</i> 系统首页</a></li>
+                    <li><a href="users.html"><i>👥</i> 用户管理</a></li>
+                    <li><a href="categories.html"><i>📁</i> 商品类型</a></li>
+                    <li><a href="products.html"><i>📦</i> 商品档案</a></li>
+                    <li><a href="customers.html"><i>👤</i> 客户档案</a></li>
+                    <li><a href="purchase-orders.html"><i>📥</i> 采购入库</a></li>
+                    <li><a href="sales-orders.html"><i>📤</i> 销售出库</a></li>
+                    <li><a href="stock.html"><i>📊</i> 库存查询</a></li>
+                    <li><a href="invoices.html" class="active"><i>🧾</i> 发票管理</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="content">
+            <div class="header">
+                <h2>🧾 发票管理</h2>
+                <div class="user-info">
+                    <span>欢迎, <strong>Admin</strong></span>
+                    <div class="user-avatar">A</div>
+                    <button class="logout-btn" onclick="handleLogout()"><i>🚪</i> 退出登录</button>
+                </div>
+            </div>
+            <div class="page-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>发票列表</h3>
+                        <button class="btn btn-primary" onclick="showAddModal()">添加发票</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>发票编号</th>
+                                <th>金额</th>
+                                <th>开票日期</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="invoiceTable">
+                            <tr><td colspan="5" style="text-align: center; color: #b8b8d0;">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <script>
+        
+        async function loadInvoices() {
+            try {
+                const invoices = await api.getInvoices();
+                const tbody = document.getElementById('invoiceTable');
+                tbody.innerHTML = invoices.map(invoice => `
+                    <tr>
+                        <td>${invoice.id}</td>
+                        <td>${invoice.invoice_no}</td>
+                        <td>${formatCurrency(invoice.amount)}</td>
+                        <td>${formatDate(invoice.invoice_date)}</td>
+                        <td>
+                            <div class="table-actions">
+                                <button class="btn-edit" onclick="showDetailModal(${invoice.id})">详情</button>
+                                <button class="btn-edit" onclick="showEditModal(${invoice.id})">编辑</button>
+                                <button class="btn-delete" onclick="deleteInvoice(${invoice.id})">删除</button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                showAlert(error.message, 'error');
+            }
+        }
+        
+        function showAddModal() {
+            createModal('添加发票', `
+                <div class="form-group">
+                    <label>发票编号</label>
+                    <input type="text" id="inv-no" placeholder="请输入发票编号">
+                </div>
+                <div class="form-group">
+                    <label>发票内容</label>
+                    <textarea id="inv-content" rows="4" placeholder="请输入发票内容"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>金额</label>
+                    <input type="number" step="0.01" id="inv-amount" placeholder="请输入金额">
+                </div>
+            `, async () => {
+                const invoice_no = document.getElementById('inv-no').value;
+                
+                if (!invoice_no) {
+                    throw new Error('请输入发票编号');
+                }
+                
+                await api.createInvoice({
+                    invoice_no,
+                    content: document.getElementById('inv-content').value,
+                    amount: parseFloat(document.getElementById('inv-amount').value) || 0
+                });
+                showAlert('发票添加成功');
+                loadInvoices();
+            });
+        }
+        
+        async function showDetailModal(id) {
+            const invoice = await api.getInvoice(id);
+            createModal('发票详情', `
+                <div class="form-group">
+                    <label>发票编号</label>
+                    <input type="text" value="${invoice.invoice_no}" disabled>
+                </div>
+                <div class="form-group">
+                    <label>发票内容</label>
+                    <textarea rows="6" disabled>${invoice.content || '-'}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>金额</label>
+                    <input type="text" value="${formatCurrency(invoice.amount)}" disabled>
+                </div>
+                <div class="form-group">
+                    <label>开票日期</label>
+                    <input type="text" value="${formatDate(invoice.invoice_date)}" disabled>
+                </div>
+            `, () => {});
+        }
+        
+        async function showEditModal(id) {
+            const invoice = await api.getInvoice(id);
+            createModal('编辑发票', `
+                <div class="form-group">
+                    <label>发票编号</label>
+                    <input type="text" id="edit-no" value="${invoice.invoice_no}">
+                </div>
+                <div class="form-group">
+                    <label>发票内容</label>
+                    <textarea id="edit-content" rows="4">${invoice.content || ''}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>金额</label>
+                    <input type="number" step="0.01" id="edit-amount" value="${invoice.amount || ''}">
+                </div>
+            `, async () => {
+                const invoice_no = document.getElementById('edit-no').value;
+                
+                if (!invoice_no) {
+                    throw new Error('请输入发票编号');
+                }
+                
+                await api.updateInvoice(id, {
+                    invoice_no,
+                    content: document.getElementById('edit-content').value,
+                    amount: parseFloat(document.getElementById('edit-amount').value) || 0
+                });
+                showAlert('发票更新成功');
+                loadInvoices();
+            });
+        }
+        
+        async function deleteInvoice(id) {
+            if (!confirm('确定要删除该发票吗？')) return;
+            
+            try {
+                await api.deleteInvoice(id);
+                showAlert('发票删除成功');
+                loadInvoices();
+            } catch (error) {
+                showAlert(error.message, 'error');
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadCurrentUser();
+            await loadInvoices();
+        });
+    </script>
+</body>
+</html>
