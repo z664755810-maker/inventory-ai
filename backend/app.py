@@ -37,6 +37,10 @@ with app.app_context():
     db.create_all()
     print("Database tables created successfully")
 
+    # 临时容器（如 Railway）SQLite 为空库，启动时自动填充演示数据（幂等）
+    from seed_data import seed_if_empty
+    seed_if_empty()
+
 @app.route('/api/health', methods=['GET'])
 def health():
     return {'status': 'ok'}
