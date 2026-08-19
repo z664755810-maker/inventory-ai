@@ -1,0 +1,10 @@
+# Railway 配置：后端在 backend 子目录、启动用 gunicorn
+# Render 不识别此文件，Railway 不识别 render.yaml，所以保留互不影响的两份配置。
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
