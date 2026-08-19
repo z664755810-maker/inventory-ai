@@ -1,0 +1,22 @@
+# Render 部署配置（仓库根目录）
+# 用法：Render 控制台 → New → Blueprint → 连 GitHub 选本仓库 → 自动读取此文件
+services:
+  - type: web
+    name: inventory-ai
+    rootDir: backend            # 命令在 backend 目录执行
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
+    healthCheckPath: /api/health
+    envVars:
+      - key: LLM_API_KEY        # 部署后在 Render 后台手动填入（sync: false = 不进仓库）
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://open.bigmodel.cn/api/paas/v4
+      - key: LLM_MODEL
+        value: glm-4-flash
+      - key: SECRET_KEY
+        generateValue: true
+    # 说明：默认 SQLite（演示够用，重启会重置数据）。
+    # 若需持久化，可在 Render 加一个 Postgres 免费库，并把 DATABASE_URL 指向它。
