@@ -1,4 +1,3 @@
-import json
 import re
 from datetime import datetime
 
@@ -131,21 +130,45 @@ def fallback_response(agent_type, message, data):
 
 
 # ---------- 4. 提示词构造 ----------
+def _format_data_for_prompt(data):
+    """把 dict 渲染成 bullet 列表，便于小模型直接读取字段。
+
+    小模型对 JSON 嵌套结构解析能力弱，把它平铺成「字段：值」更可靠。
+    """
+    lines = []
+    for key, value in data.items():
+        if isinstance(value, list):
+            if not value:
+                lines.append(f"- {key}：（空）")
+            else:
+                lines.append(f"- {key}：")
+                for item in value[:5]:
+                    if isinstance(item, dict):
+                        sub = '，'.join(
+                            f"{ik}={iv}" for ik, iv in item.items()
+                            if not str(ik).endswith('_id')
+                        )
+                        lines.append(f"  · {sub}")
+        else:
+            lines.append(f"- {key}：{value}")
+    return '\n'.join(lines)
+
+
 def build_system_prompt(agent_type):
     role = AGENT_CONFIGS.get(agent_type, AGENT_CONFIGS['general'])['description']
     return (f"你是京东电子商品物流系统的智能助手（{role}）。\n"
-            f"你的任务：直接根据下方【业务数据】回答【用户问题】。\n"
+            f"你的任务：根据下方【业务数据】回答【用户问题】。\n"
             f"严格要求：\n"
-            f"1. 必须从业务数据中提取数字或名称来回答，禁止说『问题为空』『未提供具体内容』之类的话。\n"
-            f"2. 即使业务数据字段少，也要给出可用的具体回答（如总数、关键指标）。\n"
+            f"1. 必须从【业务数据】里提取具体数字或名称放进回答。\n"
+            f"2. 禁止回答『暂无相关数据』『问题为空』『未提供』等套话——只要【业务数据】有任何字段，就用它来回答。\n"
             f"3. 回答用简洁中文，可使用 emoji 与条目排版。")
 
 
 def build_user_prompt(agent_type, message, data):
+    formatted = _format_data_for_prompt(data)
     return (f"【用户问题】\n{message}\n\n"
-            f"【业务数据】\n{json.dumps(data, ensure_ascii=False, indent=2)}\n\n"
-            f"请根据上面【业务数据】直接回答【用户问题】。"
-            f"如果数据中无相关字段，请用『暂无相关数据』开头，但不要质疑用户问题是否为空。")
+            f"【业务数据】（下面每一行都是可以直接引用的真实业务数据）\n{formatted}\n\n"
+            f"请根据上面【业务数据】直接回答【用户问题】，必须包含其中的具体数字。")
 
 
 # ---------- 5.5. 防呆：小模型幻觉检测 ----------
