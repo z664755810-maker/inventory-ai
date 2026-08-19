@@ -24,7 +24,7 @@ def get_client():
         _client = None
         return None
 
-    base_url = os.getenv('LLM_BASE_URL', 'https://api.deepseek.com/v1')
+    base_url = os.getenv('LLM_BASE_URL', 'https://open.bigmodel.cn/api/paas/v4')
     try:
         _client = OpenAI(api_key=api_key, base_url=base_url)
     except Exception as exc:  # noqa: BLE001
@@ -41,7 +41,7 @@ def ask_llm(system_prompt: str, user_prompt: str,
     if client is None:
         return None
 
-    model = os.getenv('LLM_MODEL', 'deepseek-chat')
+    model = os.getenv('LLM_MODEL', 'glm-4-flash')
     try:
         resp = client.chat.completions.create(
             model=model,
