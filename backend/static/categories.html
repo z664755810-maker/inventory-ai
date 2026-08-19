@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>京东电子商品物流系统 - 商品类型</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+    <div id="app" class="main-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">📦</div>
+                    <h1>京东电子商品物流系统</h1>
+                </div>
+            </div>
+            <div class="sidebar-menu">
+                <ul>
+                    <li><a href="index.html"><i>🏠</i> 系统首页</a></li>
+                    <li><a href="users.html"><i>👥</i> 用户管理</a></li>
+                    <li><a href="categories.html" class="active"><i>📁</i> 商品类型</a></li>
+                    <li><a href="products.html"><i>📦</i> 商品档案</a></li>
+                    <li><a href="customers.html"><i>👤</i> 客户档案</a></li>
+                    <li><a href="purchase-orders.html"><i>📥</i> 采购入库</a></li>
+                    <li><a href="sales-orders.html"><i>📤</i> 销售出库</a></li>
+                    <li><a href="stock.html"><i>📊</i> 库存查询</a></li>
+                    <li><a href="invoices.html"><i>🧾</i> 发票管理</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="content">
+            <div class="header">
+                <h2>📁 商品类型管理</h2>
+                <div class="user-info">
+                    <span>欢迎, <strong>{{ currentUser?.username || 'Admin' }}</strong></span>
+                    <div class="user-avatar">{{ (currentUser?.username || 'A').charAt(0).toUpperCase() }}</div>
+                    <button class="logout-btn" @click="handleLogout"><i>🚪</i> 退出登录</button>
+                </div>
+            </div>
+            <div class="page-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>商品类型</h3>
+                        <button class="btn btn-primary" @click="showAddModal()">添加类型</button>
+                    </div>
+                    <div id="treeContainer" style="padding-left: 10px;">
+                        <span v-if="loading">加载中...</span>
+                        <div v-else>
+                            <tree-node
+                                v-for="item in categoryTree"
+                                :key="item.id"
+                                :item="item"
+                                :level="0"
+                                @add="showAddModal"
+                                @edit="showEditModal"
+                                @delete="deleteCategory"
+                            ></tree-node>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div v-if="modalVisible" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>{{ modalTitle }}</h3>
+                <button class="modal-close" @click="closeModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>类型名称</label>
+                    <input type="text" v-model="formData.name" placeholder="请输入类型名称">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="closeModal">取消</button>
+                <button class="btn btn-primary" @click="handleModalSubmit">{{ modalSubmitText }}</button>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="alertVisible" :class="['alert', `alert-${alertType}`]">
+        {{ alertMessage }}
+    </div>
+    
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <script>
+        const { createApp, ref, onMounted, reactive } = Vue;
+
+        const TreeNode = {
+            name: 'TreeNode',
+            props: {
+                item: {
+                    type: Object,
+                    required: true
+                },
+                level: {
+                    type: Number,
+                    default: 0
+                }
+            },
+            emits: ['add', 'edit', 'delete'],
+            setup(props, { emit }) {
+                const expanded = ref(true);
+                const animating = ref(false);
+                
+                const toggleExpand = () => {
+                    if (props.item.children && props.item.children.length > 0) {
+                        animating.value = true;
+                        expanded.value = !expanded.value;
+                        setTimeout(() => animating.value = false, 300);
+                    }
+                };
+                
+                const getExpandIcon = () => {
+                    if (!props.item.children || props.item.children.length === 0) {
+                        return '📁';
+                    }
+                    return expanded.value ? '📂' : '📁';
+                };
+                
+                const getLevelColor = () => {
+                    const colors = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+                    return colors[props.level % colors.length];
+                };
+                
+                return {
+                    expanded,
+                    animating,
+                    toggleExpand,
+                    getExpandIcon,
+                    getLevelColor
+                };
+            },
+            template: `
+                <div class="tree-item" :id="'tree-item-' + item.id">
+                    <div 
+                        class="tree-label" 
+                        :style="{ 
+                            paddingLeft: (level * 24) + 'px',
+                            borderLeftColor: getLevelColor()
+                        }"
+                        @click="toggleExpand"
+                    >
+                        <span class="expand-icon">{{ getExpandIcon() }}</span>
+                        <span class="category-name">{{ item.name }}</span>
+                        <span class="category-badge" v-if="item.children && item.children.length > 0">
+                            {{ item.children.length }}
+                        </span>
+                    </div>
+                    <div class="tree-actions">
+                        <button class="btn-add" @click.stop="() => $emit('add', item.id)">添加</button>
+                        <button class="btn-edit" @click.stop="() => $emit('edit', item.id)">编辑</button>
+                        <button class="btn-delete" @click.stop="() => $emit('delete', item.id)">删除</button>
+                    </div>
+                    <div 
+                        v-if="item.children && item.children.length > 0"
+                        :id="'children-' + item.id"
+                        class="children"
+                        :class="{ 'expanded': expanded, 'collapsing': animating }"
+                    >
+                        <tree-node
+                            v-for="child in item.children"
+                            :key="child.id"
+                            :item="child"
+                            :level="level + 1"
+                            @add="$emit('add', $event)"
+                            @edit="$emit('edit', $event)"
+                            @delete="$emit('delete', $event)"
+                        ></tree-node>
+                    </div>
+                </div>
+            `
+        };
+
+        const app = createApp({
+            components: {
+                TreeNode
+            },
+            setup() {
+                const currentUser = ref(null);
+                const categoryTree = ref([]);
+                const loading = ref(true);
+                
+                const modalVisible = ref(false);
+                const modalTitle = ref('');
+                const modalSubmitText = ref('');
+                const editingId = ref(null);
+                const parentId = ref(null);
+                
+                const formData = reactive({
+                    name: ''
+                });
+                
+                const alertVisible = ref(false);
+                const alertMessage = ref('');
+                const alertType = ref('success');
+                
+                const showAlert = (message, type = 'success') => {
+                    alertMessage.value = message;
+                    alertType.value = type;
+                    alertVisible.value = true;
+                    setTimeout(() => {
+                        alertVisible.value = false;
+                    }, 3000);
+                };
+                
+                const handleLogout = async () => {
+                    if (confirm('确定要退出登录吗？')) {
+                        try {
+                            await api.logout();
+                            window.location.href = 'login.html';
+                        } catch (error) {
+                            window.location.href = 'login.html';
+                        }
+                    }
+                };
+                
+                const loadCurrentUser = async () => {
+                    try {
+                        currentUser.value = await api.getCurrentUser();
+                    } catch (error) {
+                        window.location.href = 'login.html';
+                    }
+                };
+                
+                const loadCategories = async () => {
+                    loading.value = true;
+                    try {
+                        categoryTree.value = await api.getCategoryTree();
+                    } catch (error) {
+                        showAlert(error.message, 'error');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+                
+                const showAddModal = (parentIdValue = null) => {
+                    parentId.value = parentIdValue;
+                    editingId.value = null;
+                    modalTitle.value = '添加商品类型';
+                    modalSubmitText.value = '添加';
+                    formData.name = '';
+                    modalVisible.value = true;
+                };
+                
+                const showEditModal = async (id) => {
+                    try {
+                        const category = await api.getCategory(id);
+                        editingId.value = id;
+                        parentId.value = null;
+                        modalTitle.value = '编辑商品类型';
+                        modalSubmitText.value = '保存';
+                        formData.name = category.name;
+                        modalVisible.value = true;
+                    } catch (error) {
+                        showAlert(error.message, 'error');
+                    }
+                };
+                
+                const closeModal = () => {
+                    modalVisible.value = false;
+                    formData.name = '';
+                    editingId.value = null;
+                    parentId.value = null;
+                };
+                
+                const handleModalSubmit = async () => {
+                    const name = formData.name.trim();
+                    if (!name) {
+                        showAlert('请输入类型名称', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        if (editingId.value) {
+                            await api.updateCategory(editingId.value, { name });
+                            showAlert('商品类型更新成功');
+                        } else {
+                            await api.createCategory({ name, parent_id: parentId.value });
+                            showAlert('商品类型添加成功');
+                        }
+                        closeModal();
+                        loadCategories();
+                    } catch (error) {
+                        showAlert(error.message, 'error');
+                    }
+                };
+                
+                const deleteCategory = async (id) => {
+                    if (!confirm('确定要删除该商品类型吗？该类型下的子类型也将被删除。')) return;
+                    
+                    try {
+                        await api.deleteCategory(id);
+                        showAlert('商品类型删除成功');
+                        loadCategories();
+                    } catch (error) {
+                        showAlert(error.message, 'error');
+                    }
+                };
+                
+                onMounted(async () => {
+                    await loadCurrentUser();
+                    await loadCategories();
+                });
+                
+                return {
+                    currentUser,
+                    categoryTree,
+                    loading,
+                    modalVisible,
+                    modalTitle,
+                    modalSubmitText,
+                    formData,
+                    alertVisible,
+                    alertMessage,
+                    alertType,
+                    handleLogout,
+                    showAddModal,
+                    showEditModal,
+                    closeModal,
+                    handleModalSubmit,
+                    deleteCategory
+                };
+            }
+        });
+
+        app.mount('#app');
+    </script>
+    <style>
+        /* 树状结构样式优化 */
+        .tree-item {
+            margin: 8px 0;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .tree-item:hover {
+            background: rgba(102, 126, 234, 0.08);
+            transform: translateX(4px);
+        }
+        
+        .tree-label {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            gap: 12px;
+        }
+        
+        .tree-label:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-left-color: var(--accent-color, #667eea);
+        }
+        
+        .tree-label:active {
+            background: rgba(102, 126, 234, 0.15);
+        }
+        
+        .expand-icon {
+            font-size: 18px;
+            transition: transform 0.3s ease;
+            display: inline-block;
+        }
+        
+        .category-name {
+            flex: 1;
+            font-size: 15px;
+            font-weight: 500;
+            color: #ffffff;
+        }
+        
+        .category-badge {
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            min-width: 24px;
+            text-align: center;
+        }
+        
+        .tree-actions {
+            display: flex;
+            gap: 8px;
+            padding: 8px 16px 8px 0;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            margin-left: 24px;
+        }
+        
+        .tree-item:hover .tree-actions {
+            opacity: 1;
+        }
+        
+        .tree-actions .btn-add {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .tree-actions .btn-add:hover {
+            background: rgba(16, 185, 129, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .tree-actions .btn-edit {
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .tree-actions .btn-edit:hover {
+            background: rgba(102, 126, 234, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .tree-actions .btn-delete {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .tree-actions .btn-delete:hover {
+            background: rgba(239, 68, 68, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .children {
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            max-height: 2000px;
+        }
+        
+        .children:not(.expanded) {
+            max-height: 0;
+            opacity: 0;
+        }
+        
+        .children.expanded {
+            max-height: 2000px;
+            opacity: 1;
+        }
+        
+        .children.collapsing {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .tree-label {
+                padding: 10px 12px;
+                font-size: 14px;
+            }
+            
+            .tree-actions {
+                flex-direction: column;
+                gap: 4px;
+                margin-left: 16px;
+            }
+            
+            .tree-actions button {
+                width: 100%;
+                padding: 8px;
+            }
+        }
+    </style>
+</body>
+</html>

@@ -13,7 +13,7 @@ app.secret_key = Config.SECRET_KEY
 
 # 使用绝对路径配置前端目录，防止权限问题
 app_dir = os.path.dirname(os.path.abspath(__file__))
-app.config['FRONTEND_DIR'] = os.path.join(app_dir, '..', 'frontend')
+app.config['FRONTEND_DIR'] = os.path.join(app_dir, 'static')
 
 CORS(app, supports_credentials=True)
 

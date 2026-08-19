@@ -130,18 +130,40 @@ def fallback_response(agent_type, message, data):
 
 
 # ---------- 4. 提示词构造 ----------
+# 字段中文释义：小模型分不清 total(种类数) 与 total_stock(件数)，显式标注
+FIELD_LABELS = {
+    'total': '商品种类数（即"多少种商品"）',
+    'total_stock': '所有商品的总库存件数（即"总共多少件"）',
+    'threshold': '库存预警阈值',
+    'low_stock_count': '低于阈值的商品种类数',
+    'low_stock': '低于阈值的商品清单',
+    'order_count': '销售订单总单数',
+    'total_amount': '销售总额',
+    'top_products': '热销商品排行',
+    'date': '统计日期',
+    'sales_count': '当日销售单数',
+    'sales_amount': '当日销售额',
+    'purchase_count': '当日采购单数',
+    'purchase_amount': '当日采购额',
+    'invoice_count': '当日发票数',
+    'profit': '当日毛利（销售额-采购额）',
+}
+
+
 def _format_data_for_prompt(data):
     """把 dict 渲染成 bullet 列表，便于小模型直接读取字段。
 
     小模型对 JSON 嵌套结构解析能力弱，把它平铺成「字段：值」更可靠。
+    关键字段附中文释义，避免把"种类数"和"件数"混淆。
     """
     lines = []
     for key, value in data.items():
+        label = FIELD_LABELS.get(key, key)
         if isinstance(value, list):
             if not value:
-                lines.append(f"- {key}：（空）")
+                lines.append(f"- {label}：（空）")
             else:
-                lines.append(f"- {key}：")
+                lines.append(f"- {label}：")
                 for item in value[:5]:
                     if isinstance(item, dict):
                         sub = '，'.join(
@@ -150,7 +172,7 @@ def _format_data_for_prompt(data):
                         )
                         lines.append(f"  · {sub}")
         else:
-            lines.append(f"- {key}：{value}")
+            lines.append(f"- {label}：{value}")
     return '\n'.join(lines)
 
 
@@ -160,8 +182,9 @@ def build_system_prompt(agent_type):
             f"你的任务：根据下方【业务数据】回答【用户问题】。\n"
             f"严格要求：\n"
             f"1. 必须从【业务数据】里提取具体数字或名称放进回答。\n"
-            f"2. 禁止回答『暂无相关数据』『问题为空』『未提供』等套话——只要【业务数据】有任何字段，就用它来回答。\n"
-            f"3. 回答用简洁中文，可使用 emoji 与条目排版。")
+            f"2. 区分清楚：问『多少商品/多少种』→ 用商品种类数（total）；问『多少件/总量』→ 用总库存件数（total_stock）。\n"
+            f"3. 禁止回答『暂无相关数据』『问题为空』『未提供』等套话——只要【业务数据】有任何字段，就用它来回答。\n"
+            f"4. 回答用简洁中文，可使用 emoji 与条目排版。")
 
 
 def build_user_prompt(agent_type, message, data):
