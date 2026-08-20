@@ -1,4 +1,4 @@
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 const api = {
     async request(url, method = 'GET', data = null) {
@@ -208,9 +208,9 @@ const api = {
         return this.request(`/invoices/${id}`, 'DELETE');
     },
 
-    // AI智能体
-    queryAgent(agentType, message) {
-        return this.request('/agent/query', 'POST', { agent_type: agentType, message: message });
+    // AI 智能体（统一多面手，v2 起不再传 agent_type）
+    queryAgent(message) {
+        return this.request('/agent/query', 'POST', { message });
     },
 
     getAgentConfigs() {

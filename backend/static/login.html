@@ -11,20 +11,27 @@
         <div class="login-box">
             <div class="logo-icon">📦</div>
             <h2>京东电子商品物流系统</h2>
-            
+            <p class="login-subtitle">业务管理平台 · Demo</p>
+
             <!-- 错误提示 -->
             <div id="error-message" class="login-error" style="display: none;"></div>
-            
+
             <div class="form-group">
                 <label for="username">用户名</label>
-                <input type="text" id="username" placeholder="请输入用户名">
+                <input type="text" id="username" placeholder="请输入用户名" autocomplete="username">
             </div>
             <div class="form-group">
                 <label for="password">密码</label>
-                <input type="password" id="password" placeholder="请输入密码">
+                <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password">
             </div>
             <button class="btn btn-primary" onclick="handleLogin()">登录</button>
-            
+
+            <!-- 默认演示账号提示 -->
+            <div class="login-hint">
+                <strong>演示账号：</strong>admin / admin
+                <button type="button" class="btn-fill" onclick="fillDemoAccount()">一键填入</button>
+            </div>
+
             <!-- 链接区域 -->
             <div class="login-links">
                 <a href="javascript:void(0)" onclick="showRegisterModal()">注册账号</a>
@@ -136,6 +143,12 @@
                 handleLogin();
             }
         });
+
+        // 一键填入演示账号
+        function fillDemoAccount() {
+            document.getElementById('username').value = 'admin';
+            document.getElementById('password').value = 'admin';
+        }
     </script>
 </body>
 </html>

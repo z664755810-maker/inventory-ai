@@ -12,7 +12,7 @@
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="logo">
-                    <div class="logo-icon">📱</div>
+                    <div class="logo-icon">📦</div>
                     <h1>京东电子商品物流系统</h1>
                 </div>
             </div>
@@ -605,12 +605,12 @@
         document.addEventListener('DOMContentLoaded', async () => {
             await loadCurrentUser();
             await loadDashboard();
-            // 进入页面时若默认 agent 已有历史，自动渲染（之前只是清空欢迎区）
-            if (agentConversations[currentAgent].length > 0) {
+            // 进入页面时若有历史则自动渲染（去掉默认欢迎）
+            if (agentHistory.length > 0) {
                 const chatArea = document.getElementById('agentChatArea');
-                const welcome = document.getElementById('agentWelcome');
+                const welcome = chatArea.querySelector('.agent-welcome');
                 if (welcome) welcome.remove();
-                agentConversations[currentAgent].forEach(msg => {
+                agentHistory.forEach(msg => {
                     addMessageToChatArea(msg.role, msg.content, msg.time, false);
                 });
             }
@@ -1115,42 +1115,27 @@
     
     <!-- AI智能体模块 -->
     <button class="agent-float-btn" onclick="toggleAgentPanel()">🤖</button>
-    
+
     <div class="agent-panel" id="agentPanel">
         <div class="agent-header">
-            <h3>🤖 智能助手</h3>
+            <h3>🤖 业务智能助手</h3>
             <div class="agent-header-controls">
                 <button class="agent-history-btn" onclick="clearAgentHistory()" title="清空对话历史">🗑</button>
                 <button class="agent-maximize-btn" onclick="toggleAgentMaximize()" title="放大/缩小">⛶</button>
                 <button class="agent-close-btn" onclick="toggleAgentPanel()">✕</button>
             </div>
         </div>
-        
-        <div class="agent-switcher">
-            <button class="agent-tab active" data-agent="general" onclick="switchAgent('general')">
-                <span>🎯</span> 通用助手
-            </button>
-            <button class="agent-tab" data-agent="inventory" onclick="switchAgent('inventory')">
-                <span>📦</span> 库存专家
-            </button>
-            <button class="agent-tab" data-agent="sales" onclick="switchAgent('sales')">
-                <span>📈</span> 销售顾问
-            </button>
-            <button class="agent-tab" data-agent="report" onclick="switchAgent('report')">
-                <span>📊</span> 报表分析
-            </button>
-        </div>
-        
+
         <div class="agent-chat-area" id="agentChatArea">
             <div class="agent-welcome" id="agentWelcome">
-                <div class="welcome-icon">🎯</div>
-                <h4>通用智能助手</h4>
-                <p>我可以帮您查询数据、分析报表、管理库存等。<br>有什么需要帮助的吗？</p>
+                <div class="welcome-icon">🤖</div>
+                <h4>业务智能助手</h4>
+                <p>我可以帮您查询库存、销售、报表等业务数据。<br>用自然语言提问即可，不用切换模式。</p>
                 <div class="quick-actions">
-                    <button class="quick-btn" onclick="sendQuickMessage('查询库存预警商品')">查询库存预警</button>
-                    <button class="quick-btn" onclick="sendQuickMessage('统计今日销售额')">今日销售额</button>
-                    <button class="quick-btn" onclick="sendQuickMessage('分析销售趋势')">销售趋势分析</button>
-                    <button class="quick-btn" onclick="sendQuickMessage('列出热门商品')">热门商品TOP10</button>
+                    <button class="quick-btn" onclick="sendQuickMessage('仓库里有多少商品')">商品种类数</button>
+                    <button class="quick-btn" onclick="sendQuickMessage('列出库存低于50件的商品')">库存预警</button>
+                    <button class="quick-btn" onclick="sendQuickMessage('统计今日销售额')">今日销售</button>
+                    <button class="quick-btn" onclick="sendQuickMessage('热门商品TOP10')">热销 TOP</button>
                 </div>
             </div>
         </div>
@@ -1163,115 +1148,69 @@
     
     <script>
         let agentPanelOpen = false;
-        let currentAgent = 'general';
         let agentMaximized = false;
-        // localStorage key —— 智能体对话历史按 agent_type 持久化
-        const AGENT_HISTORY_KEY = 'inventory_ai_agent_history_v1';
-        // 单个智能体最大保留消息数（防止 localStorage 撑爆）
+
+        // 单一对话历史（v2：去掉多 agent 拆分，对话连续）
+        const AGENT_HISTORY_KEY = 'inventory_ai_agent_history_v2';
         const AGENT_HISTORY_LIMIT = 200;
+        let agentHistory = [];
 
-        // 内存中的对话状态：每个 agent_type 一份独立数组
-        let agentConversations = {
-            general: [],
-            inventory: [],
-            sales: [],
-            report: []
-        };
-
-        // 把内存里的历史写到 localStorage
         function saveAgentHistory() {
             try {
-                localStorage.setItem(
-                    AGENT_HISTORY_KEY,
-                    JSON.stringify(agentConversations)
-                );
+                localStorage.setItem(AGENT_HISTORY_KEY, JSON.stringify(agentHistory));
             } catch (e) {
-                // localStorage 满了或被禁用时静默失败，UI 仍可用
                 console.warn('saveAgentHistory failed:', e);
             }
         }
 
-        // 从 localStorage 读回历史，损坏或缺失则保持默认空数组
         function loadAgentHistory() {
             try {
                 const raw = localStorage.getItem(AGENT_HISTORY_KEY);
                 if (!raw) return;
                 const parsed = JSON.parse(raw);
-                if (parsed && typeof parsed === 'object') {
-                    ['general', 'inventory', 'sales', 'report'].forEach(k => {
-                        if (Array.isArray(parsed[k])) {
-                            // 截断到上限，避免超大历史回不来
-                            agentConversations[k] = parsed[k].slice(-AGENT_HISTORY_LIMIT);
-                        }
-                    });
+                if (Array.isArray(parsed)) {
+                    agentHistory = parsed.slice(-AGENT_HISTORY_LIMIT);
                 }
             } catch (e) {
                 console.warn('loadAgentHistory failed:', e);
             }
         }
 
-        // 清空当前智能体的对话历史（前端 UI 行为，不动后端）
         function clearAgentHistory() {
-            const name = agentConfigs[currentAgent].name;
-            if (!confirm(`确定清空「${name}」的对话历史吗？此操作不可恢复。`)) return;
-            agentConversations[currentAgent] = [];
+            if (!confirm('确定清空全部对话历史吗？此操作不可恢复。')) return;
+            agentHistory = [];
             saveAgentHistory();
-            // 重新渲染当前面板
             const chatArea = document.getElementById('agentChatArea');
             chatArea.innerHTML = '';
-            renderAgentWelcome(currentAgent);
+            renderAgentWelcome();
         }
 
-        // 把欢迎界面重新画到 chat 区域（从 switchAgent 拆出来，供 clearAgentHistory 复用）
-        function renderAgentWelcome(agentType) {
-            const config = agentConfigs[agentType];
+        function renderAgentWelcome() {
             const chatArea = document.getElementById('agentChatArea');
             const welcomeArea = document.createElement('div');
             welcomeArea.className = 'agent-welcome';
             welcomeArea.innerHTML =
-                `<div class="welcome-icon">${config.icon}</div>` +
-                `<h4>${config.name}</h4>` +
-                `<p>${config.welcome}</p>` +
-                `<div class="quick-actions">${getQuickActions(agentType)}</div>`;
+                `<div class="welcome-icon">🤖</div>` +
+                `<h4>业务智能助手</h4>` +
+                `<p>我可以帮您查询库存、销售、报表等业务数据。<br>用自然语言提问即可。</p>` +
+                `<div class="quick-actions">` +
+                    `<button class="quick-btn" onclick="sendQuickMessage('仓库里有多少商品')">商品种类数</button>` +
+                    `<button class="quick-btn" onclick="sendQuickMessage('列出库存低于50件的商品')">库存预警</button>` +
+                    `<button class="quick-btn" onclick="sendQuickMessage('统计今日销售额')">今日销售</button>` +
+                    `<button class="quick-btn" onclick="sendQuickMessage('热门商品TOP10')">热销 TOP</button>` +
+                `</div>`;
             chatArea.appendChild(welcomeArea);
         }
 
         // 启动时读历史
         loadAgentHistory();
-        
-        const agentConfigs = {
-            general: {
-                name: '通用助手',
-                icon: '🎯',
-                description: '综合智能助手，提供全面的业务支持',
-                welcome: '我可以帮您查询数据、分析报表、管理库存等。有什么需要帮助的吗？'
-            },
-            inventory: {
-                name: '库存专家',
-                icon: '📦',
-                description: '专业库存管理咨询',
-                welcome: '我是库存管理专家，可以帮您查询库存、设置预警、分析库存状况。'
-            },
-            sales: {
-                name: '销售顾问',
-                icon: '📈',
-                description: '销售数据分析与建议',
-                welcome: '我是销售顾问，可以帮您分析销售数据、预测趋势、优化营销策略。'
-            },
-            report: {
-                name: '报表分析',
-                icon: '📊',
-                description: '深度业务报表分析',
-                welcome: '我是报表分析师，可以帮您生成各类业务报表、进行数据挖掘和可视化分析。'
-            }
-        };
-        
+
         function toggleAgentPanel() {
             const panel = document.getElementById('agentPanel');
             const btn = document.querySelector('.agent-float-btn');
-            
+
             agentPanelOpen = !agentPanelOpen;
-            
+
             if (agentPanelOpen) {
                 panel.classList.add('show');
                 btn.classList.add('active');
@@ -1280,13 +1219,13 @@
                 btn.classList.remove('active');
             }
         }
-        
+
         function toggleAgentMaximize() {
             const panel = document.getElementById('agentPanel');
             const maximizeBtn = document.querySelector('.agent-maximize-btn');
-            
+
             agentMaximized = !agentMaximized;
-            
+
             if (agentMaximized) {
                 panel.classList.add('maximized');
                 maximizeBtn.textContent = '⛷';
@@ -1297,202 +1236,127 @@
                 maximizeBtn.title = '放大窗口';
             }
         }
-        
-        function switchAgent(agentType) {
-            currentAgent = agentType;
-            
-            document.querySelectorAll('.agent-tab').forEach(tab => {
-                tab.classList.remove('active');
-                if (tab.dataset.agent === agentType) {
-                    tab.classList.add('active');
-                }
-            });
-            
-            const config = agentConfigs[agentType];
+
+        function addMessageToChatArea(role, content, time, saveToHistory) {
+            if (saveToHistory === undefined) saveToHistory = true;
             const chatArea = document.getElementById('agentChatArea');
-            
-            // 清空聊天区域并重新渲染
-            chatArea.innerHTML = '';
-            
-            // 如果该智能体有对话历史，显示历史记录
-            if (agentConversations[agentType] && agentConversations[agentType].length > 0) {
-                agentConversations[agentType].forEach(msg => {
-                    addMessageToChatArea(msg.role, msg.content, msg.time, false);
-                });
-            } else {
-                // 显示欢迎界面
-                const welcomeArea = document.getElementById('agentWelcome').cloneNode(true);
-                welcomeArea.innerHTML = `
-                    <div class="welcome-icon">${config.icon}</div>
-                    <h4>${config.name}</h4>
-                    <p>${config.welcome}</p>
-                    <div class="quick-actions">
-                        ${getQuickActions(agentType)}
-                    </div>
-                `;
-                welcomeArea.style.display = 'block';
-                chatArea.appendChild(welcomeArea);
-            }
-            
-            // 滚动到底部
-            chatArea.scrollTop = chatArea.scrollHeight;
-        }
-        
-        function addMessageToChatArea(role, content, time, saveToHistory = true) {
-            const chatArea = document.getElementById('agentChatArea');
-            
-            // 移除欢迎界面
-            const welcomeArea = document.getElementById('agentWelcome');
-            if (welcomeArea) {
-                welcomeArea.remove();
-            }
-            
+
+            // 移除欢迎界面（如果还在）
+            const welcome = chatArea.querySelector('.agent-welcome');
+            if (welcome) welcome.remove();
+
             const messageDiv = document.createElement('div');
             messageDiv.className = `chat-message ${role}`;
-            
-            const timeStr = time ? new Date(time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-            
-            const avatar = role === 'user' ? '👤' : agentConfigs[currentAgent].icon;
-            
-            messageDiv.innerHTML = `
-                <div class="message-avatar">${avatar}</div>
-                <div class="message-content">
-                    ${content}
-                    <div class="message-time">${timeStr}</div>
-                </div>
-            `;
-            
+
+            const timeStr = time
+                ? new Date(time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                : new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+            const avatar = role === 'user' ? '👤' : '🤖';
+
+            messageDiv.innerHTML =
+                `<div class="message-avatar">${avatar}</div>` +
+                `<div class="message-content">` +
+                    escapeHtml(content) +
+                    `<div class="message-time">${timeStr}</div>` +
+                `</div>`;
+
             chatArea.appendChild(messageDiv);
             chatArea.scrollTop = chatArea.scrollHeight;
-            
-            // 保存到对应智能体的历史记录
+
             if (saveToHistory) {
-                agentConversations[currentAgent].push({
+                agentHistory.push({
                     role: role,
                     content: content,
                     time: new Date().toISOString()
                 });
-                // 同步持久化到 localStorage（刷新/关页面也不丢）
+                // 截断防止撑爆
+                if (agentHistory.length > AGENT_HISTORY_LIMIT) {
+                    agentHistory = agentHistory.slice(-AGENT_HISTORY_LIMIT);
+                }
                 saveAgentHistory();
             }
         }
-        
-        function addMessage(role, content) {
-            addMessageToChatArea(role, content, null, true);
-        }
-        
-        function getQuickActions(agentType) {
-            const actions = {
-                general: [
-                    { label: '查询库存预警', msg: '查询库存预警商品' },
-                    { label: '今日销售额', msg: '统计今日销售额' },
-                    { label: '销售趋势分析', msg: '分析销售趋势' },
-                    { label: '热门商品TOP10', msg: '列出热门商品' }
-                ],
-                inventory: [
-                    { label: '库存不足商品', msg: '列出库存低于50件的商品' },
-                    { label: '库存盘点', msg: '进行库存盘点' },
-                    { label: '库存预警设置', msg: '如何设置库存预警' },
-                    { label: '库存统计', msg: '统计各类别库存数量' }
-                ],
-                sales: [
-                    { label: '销售排行榜', msg: '列出销售排行榜' },
-                    { label: '销售数据分析', msg: '分析销售数据' },
-                    { label: '客户购买分析', msg: '分析客户购买行为' },
-                    { label: '销售预测', msg: '预测下月销售额' }
-                ],
-                report: [
-                    { label: '生成日报', msg: '生成今日业务日报' },
-                    { label: '月度报表', msg: '生成月度销售报表' },
-                    { label: '利润分析', msg: '分析利润率' },
-                    { label: '数据可视化', msg: '生成可视化图表' }
-                ]
-            };
-            
-            return actions[agentType].map(action => 
-                `<button class="quick-btn" onclick="sendQuickMessage('${action.msg}')">${action.label}</button>`
-            ).join('');
-        }
-        
+
         function sendQuickMessage(message) {
             document.getElementById('agentInput').value = message;
             sendAgentMessage();
         }
-        
+
         function handleAgentInputKey(event) {
             if (event.key === 'Enter') {
                 sendAgentMessage();
             }
         }
-        
+
         async function sendAgentMessage() {
             const input = document.getElementById('agentInput');
             const message = input.value.trim();
-            
+
             if (!message) return;
-            
+
             input.value = '';
-            
-            addMessage('user', message);
-            
+
+            addMessageToChatArea('user', message);
+
             const sendBtn = document.getElementById('agentSendBtn');
             sendBtn.disabled = true;
-            
+
             addLoading();
-            
+
             try {
-                const response = await api.queryAgent(currentAgent, message);
-                
+                // 后端统一智能体，不传 agent_type
+                const response = await api.queryAgent(message);
+
                 removeLoading();
-                
+
                 if (response && response.response) {
-                    addMessage('bot', response.response);
+                    addMessageToChatArea('bot', response.response);
                 } else {
-                    addMessage('bot', '抱歉，我暂时无法回答这个问题。');
+                    addMessageToChatArea('bot', '抱歉，我暂时无法回答这个问题。');
                 }
             } catch (error) {
                 removeLoading();
                 console.error('Agent query failed:', error);
-                addMessage('bot', '网络繁忙，请稍后再试。');
+                addMessageToChatArea('bot', '网络繁忙，请稍后再试。');
             } finally {
                 sendBtn.disabled = false;
                 scrollToBottom();
             }
         }
-        
+
         function addLoading() {
             const chatArea = document.getElementById('agentChatArea');
-            const welcome = document.getElementById('agentWelcome');
+            const welcome = chatArea.querySelector('.agent-welcome');
             if (welcome) welcome.remove();
-            
+
             const loadingDiv = document.createElement('div');
             loadingDiv.className = 'chat-message bot';
             loadingDiv.id = 'agentLoading';
-            
-            loadingDiv.innerHTML = `
-                <div class="message-avatar">${agentConfigs[currentAgent].icon}</div>
-                <div class="agent-loading">
-                    <span>正在思考</span>
-                    <div class="typing-dots">
-                        <span></span><span></span><span></span>
-                    </div>
-                </div>
-            `;
-            
+
+            loadingDiv.innerHTML =
+                `<div class="message-avatar">🤖</div>` +
+                `<div class="agent-loading">` +
+                    `<span>正在思考</span>` +
+                    `<div class="typing-dots">` +
+                        `<span></span><span></span><span></span>` +
+                    `</div>` +
+                `</div>`;
+
             chatArea.appendChild(loadingDiv);
             scrollToBottom();
         }
-        
+
         function removeLoading() {
             const loading = document.getElementById('agentLoading');
             if (loading) loading.remove();
         }
-        
+
         function scrollToBottom() {
             const chatArea = document.getElementById('agentChatArea');
             chatArea.scrollTop = chatArea.scrollHeight;
         }
-        
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;

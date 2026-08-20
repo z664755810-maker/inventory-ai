@@ -19,6 +19,19 @@ class Config:
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # SQLite 引擎参数：
+    # - check_same_thread=False：允许多线程访问 Flask app context
+    # - timeout=15：写入冲突时等待 15 秒，避免「database is locked」瞬时失败
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'connect_args': {'check_same_thread': False, 'timeout': 15},
+        'pool_pre_ping': True,  # 每次连接前 ping，断线自动重连
+    }
+
+    # Session Cookie 安全加固
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    PERMANENT_SESSION_LIFETIME = 60 * 60 * 8  # 8 小时过期
+
     # 大模型（OpenAI 兼容协议；默认智谱 GLM-4-Flash 免费版）
     LLM_API_KEY = os.getenv('LLM_API_KEY')
     LLM_BASE_URL = os.getenv('LLM_BASE_URL', 'https://open.bigmodel.cn/api/paas/v4')

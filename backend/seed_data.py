@@ -1,9 +1,11 @@
-"""一键初始化演示数据：分类 / 商品 / 客户 / 销售订单。
+"""一键初始化演示数据：默认管理员 / 分类 / 商品 / 客户 / 销售订单。
 
 设计要点：
 - 幂等：仅在 products 表为空时才会写入，重复运行不会重复插入。
 - 与 Railway 自动部署配合：app.py 启动时调用 seed_if_empty()，
   解决临时容器里 SQLite 是空库、导致 LLM 拿不到数据的问题。
+- 默认管理员：演示账号 admin / admin（密码 bcrypt 哈希存储）。
+  Railway 容器重启会清空 SQLite，必须靠 seed 重建管理员账号。
 """
 from datetime import datetime, timedelta
 
@@ -12,6 +14,26 @@ from models.category import Category
 from models.product import Product
 from models.customer import Customer
 from models.sales_order import SalesOrder
+from models.user import User
+
+
+DEFAULT_ADMIN_USERNAME = 'admin'
+DEFAULT_ADMIN_PASSWORD = 'admin'
+
+
+def _ensure_default_admin():
+    """确保存在默认管理员账号（演示用）。
+
+    Railway 容器重启 SQLite 重置后，管理员账号会丢失。这里在 seed
+    阶段自动创建一个 admin/admin 账号，业务演示不必手动注册。
+    密码经 bcrypt 哈希后存储。
+    """
+    if User.query.filter_by(username=DEFAULT_ADMIN_USERNAME).first():
+        return False
+    admin = User(username=DEFAULT_ADMIN_USERNAME)
+    admin.set_password(DEFAULT_ADMIN_PASSWORD)
+    db.session.add(admin)
+    return True
 
 
 def _build_categories():
@@ -114,10 +136,21 @@ def _build_sales_orders(products, customers):
 
 
 def seed_if_empty():
-    """若 products 表为空则初始化演示数据；否则跳过（幂等）。"""
+    """若 products 表为空则初始化演示数据；否则只确保默认管理员存在。
+
+    - 第一次启动：products 空 → seed 全部演示数据 + 默认管理员
+    - 后续启动：products 有数据 → 跳过演示数据但仍保证管理员存在
+      （Railway 容器重启后 SQLite 被清，products 也是空的，会重新 seed）
+    """
+    admin_created = _ensure_default_admin()
+
     if Product.query.count() > 0:
-        print('[seed] 检测到已有数据，跳过初始化')
-        return False
+        if admin_created:
+            db.session.commit()
+            print('[seed] 检测到已有业务数据，已补建默认管理员账号 admin/admin')
+        else:
+            print('[seed] 检测到已有数据，跳过初始化')
+        return admin_created
 
     catalog = _build_categories()
     products = _build_products(catalog)
@@ -125,7 +158,7 @@ def seed_if_empty():
     _build_sales_orders(products, customers)
 
     db.session.commit()
-    print('[seed] 初始化完成：4 分类 / 15 商品 / 5 客户 / 12 订单')
+    print('[seed] 初始化完成：4 分类 / 15 商品 / 5 客户 / 12 订单 / 默认管理员 admin/admin')
     return True
 
 
