@@ -24,5 +24,5 @@ class Config:
     LLM_BASE_URL = os.getenv('LLM_BASE_URL', 'https://open.bigmodel.cn/api/paas/v4')
     LLM_MODEL = os.getenv('LLM_MODEL', 'glm-4-flash')
 
-    # 智能体默认库存预警阈值
-    AGENT_INVENTORY_THRESHOLD = int(os.getenv('AGENT_INVENTORY_THRESHOLD', '10'))
+    # 智能体默认库存预警阈值（默认 50，电商惯例：库存低于 50 即视为预警商品）
+    AGENT_INVENTORY_THRESHOLD = int(os.getenv('AGENT_INVENTORY_THRESHOLD', '50'))

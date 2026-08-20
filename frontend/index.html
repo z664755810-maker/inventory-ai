@@ -605,6 +605,15 @@
         document.addEventListener('DOMContentLoaded', async () => {
             await loadCurrentUser();
             await loadDashboard();
+            // 进入页面时若默认 agent 已有历史，自动渲染（之前只是清空欢迎区）
+            if (agentConversations[currentAgent].length > 0) {
+                const chatArea = document.getElementById('agentChatArea');
+                const welcome = document.getElementById('agentWelcome');
+                if (welcome) welcome.remove();
+                agentConversations[currentAgent].forEach(msg => {
+                    addMessageToChatArea(msg.role, msg.content, msg.time, false);
+                });
+            }
         });
     </script>
     <style>
@@ -844,7 +853,8 @@
             align-items: center;
         }
         .agent-close-btn,
-        .agent-maximize-btn {
+        .agent-maximize-btn,
+        .agent-history-btn {
             background: rgba(255, 255, 255, 0.08);
             border: none;
             width: 32px;
@@ -865,6 +875,10 @@
         .agent-maximize-btn:hover {
             background: rgba(102, 126, 234, 0.2);
             color: #667eea;
+        }
+        .agent-history-btn:hover {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
         }
         
         .agent-switcher {
@@ -1106,6 +1120,7 @@
         <div class="agent-header">
             <h3>🤖 智能助手</h3>
             <div class="agent-header-controls">
+                <button class="agent-history-btn" onclick="clearAgentHistory()" title="清空对话历史">🗑</button>
                 <button class="agent-maximize-btn" onclick="toggleAgentMaximize()" title="放大/缩小">⛶</button>
                 <button class="agent-close-btn" onclick="toggleAgentPanel()">✕</button>
             </div>
@@ -1150,13 +1165,79 @@
         let agentPanelOpen = false;
         let currentAgent = 'general';
         let agentMaximized = false;
-        // 为每个智能体维护独立的对话历史
+        // localStorage key —— 智能体对话历史按 agent_type 持久化
+        const AGENT_HISTORY_KEY = 'inventory_ai_agent_history_v1';
+        // 单个智能体最大保留消息数（防止 localStorage 撑爆）
+        const AGENT_HISTORY_LIMIT = 200;
+
+        // 内存中的对话状态：每个 agent_type 一份独立数组
         let agentConversations = {
             general: [],
             inventory: [],
             sales: [],
             report: []
         };
+
+        // 把内存里的历史写到 localStorage
+        function saveAgentHistory() {
+            try {
+                localStorage.setItem(
+                    AGENT_HISTORY_KEY,
+                    JSON.stringify(agentConversations)
+                );
+            } catch (e) {
+                // localStorage 满了或被禁用时静默失败，UI 仍可用
+                console.warn('saveAgentHistory failed:', e);
+            }
+        }
+
+        // 从 localStorage 读回历史，损坏或缺失则保持默认空数组
+        function loadAgentHistory() {
+            try {
+                const raw = localStorage.getItem(AGENT_HISTORY_KEY);
+                if (!raw) return;
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === 'object') {
+                    ['general', 'inventory', 'sales', 'report'].forEach(k => {
+                        if (Array.isArray(parsed[k])) {
+                            // 截断到上限，避免超大历史回不来
+                            agentConversations[k] = parsed[k].slice(-AGENT_HISTORY_LIMIT);
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn('loadAgentHistory failed:', e);
+            }
+        }
+
+        // 清空当前智能体的对话历史（前端 UI 行为，不动后端）
+        function clearAgentHistory() {
+            const name = agentConfigs[currentAgent].name;
+            if (!confirm(`确定清空「${name}」的对话历史吗？此操作不可恢复。`)) return;
+            agentConversations[currentAgent] = [];
+            saveAgentHistory();
+            // 重新渲染当前面板
+            const chatArea = document.getElementById('agentChatArea');
+            chatArea.innerHTML = '';
+            renderAgentWelcome(currentAgent);
+        }
+
+        // 把欢迎界面重新画到 chat 区域（从 switchAgent 拆出来，供 clearAgentHistory 复用）
+        function renderAgentWelcome(agentType) {
+            const config = agentConfigs[agentType];
+            const chatArea = document.getElementById('agentChatArea');
+            const welcomeArea = document.createElement('div');
+            welcomeArea.className = 'agent-welcome';
+            welcomeArea.innerHTML =
+                `<div class="welcome-icon">${config.icon}</div>` +
+                `<h4>${config.name}</h4>` +
+                `<p>${config.welcome}</p>` +
+                `<div class="quick-actions">${getQuickActions(agentType)}</div>`;
+            chatArea.appendChild(welcomeArea);
+        }
+
+        // 启动时读历史
+        loadAgentHistory();
         
         const agentConfigs = {
             general: {
@@ -1291,6 +1372,8 @@
                     content: content,
                     time: new Date().toISOString()
                 });
+                // 同步持久化到 localStorage（刷新/关页面也不丢）
+                saveAgentHistory();
             }
         }
         
@@ -1307,7 +1390,7 @@
                     { label: '热门商品TOP10', msg: '列出热门商品' }
                 ],
                 inventory: [
-                    { label: '库存不足商品', msg: '列出库存低于10件的商品' },
+                    { label: '库存不足商品', msg: '列出库存低于50件的商品' },
                     { label: '库存盘点', msg: '进行库存盘点' },
                     { label: '库存预警设置', msg: '如何设置库存预警' },
                     { label: '库存统计', msg: '统计各类别库存数量' }
