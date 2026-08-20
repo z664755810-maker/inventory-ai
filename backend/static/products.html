@@ -4,9 +4,61 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>义乌商品物流系统 - 商品档案</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=4">
+    <script src="js/api.js?v=4"></script>
+    <script src="js/utils.js?v=4"></script>
+    <style>
+        /* 商品页专用：行内编辑器、必填高亮、隐藏默认模态等 */
+        .inline-add-row {
+            display: flex; gap: 10px; flex-wrap: wrap;
+            background: rgba(102, 126, 234, 0.08);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            padding: 14px 16px; border-radius: 12px;
+            margin-bottom: 18px; align-items: center;
+        }
+        .inline-add-row input, .inline-add-row select {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--dark-border);
+            color: var(--text-primary);
+            padding: 9px 12px; border-radius: 8px; font-size: 14px;
+            outline: none; font-family: inherit;
+        }
+        .inline-add-row input:focus, .inline-add-row select:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.15);
+        }
+        .inline-add-row .field-name { flex: 2 1 180px; min-width: 160px; }
+        .inline-add-row .field-cat  { flex: 1 1 130px; min-width: 130px; }
+        .inline-add-row .field-num  { flex: 0 1 110px; min-width: 90px; }
+        .inline-add-row .field-act  { display: flex; gap: 8px; flex: 0 0 auto; }
+
+        tr.editing td {
+            background: rgba(102, 126, 234, 0.12);
+        }
+        tr.editing input, tr.editing select {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--accent-color);
+            color: var(--text-primary);
+            padding: 6px 10px; border-radius: 6px; font-size: 13px;
+            width: 100%; min-width: 80px; outline: none; font-family: inherit;
+        }
+
+        /* 表头 / 表格内文本 */
+        .product-table-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-start; }
+        .product-table-actions button { padding: 6px 12px; font-size: 12px; }
+
+        /* 错误日志条（开发期可见，便于排查） */
+        #js-error-bar {
+            display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+            background: #b91c1c; color: #fff; padding: 10px 18px; font-size: 13px;
+            font-family: ui-monospace, monospace; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            white-space: pre-wrap; max-height: 30vh; overflow: auto;
+        }
+    </style>
 </head>
 <body>
+    <div id="js-error-bar"></div>
+
     <div class="main-container">
         <div class="sidebar">
             <div class="sidebar-header">
@@ -41,176 +93,223 @@
             <div class="page-content">
                 <div class="card">
                     <div class="card-header">
-                        <h3>商品列表</h3>
-                        <button class="btn btn-primary" onclick="showAddModal()">添加商品</button>
+                        <h3>商品列表（共 <span id="product-total">0</span> 条）</h3>
+                        <span style="font-size: 13px; color: var(--text-secondary);">行内编辑：点「编辑」可直接改行 → 点「保存」生效；或用上方表单新增</span>
                     </div>
+
+                    <!-- 顶部常显新增条（不依赖弹窗，稳） -->
+                    <div class="inline-add-row" id="inline-add-form">
+                        <input type="text" id="add-name" class="field-name" placeholder="商品名称 *">
+                        <select id="add-category" class="field-cat">
+                            <option value="">选择分类 *</option>
+                        </select>
+                        <input type="text" id="add-unit" class="field-num" placeholder="单位(件/个/箱)" >
+                        <input type="number" step="0.01" id="add-price" class="field-num" placeholder="参考价格" >
+                        <input type="number" id="add-stock" class="field-num" placeholder="初始库存" value="0" >
+                        <div class="field-act">
+                            <button type="button" class="btn btn-primary" style="width:auto;padding:9px 18px;font-size:13px;" id="add-submit">+ 添加</button>
+                            <button type="button" class="btn btn-secondary" style="width:auto;padding:9px 18px;font-size:13px;" id="add-reset">清空</button>
+                        </div>
+                    </div>
+
                     <table>
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                <th style="width:60px;">ID</th>
                                 <th>商品名称</th>
                                 <th>类别</th>
                                 <th>单位</th>
                                 <th>参考价格</th>
                                 <th>库存</th>
-                                <th>操作</th>
+                                <th style="width:200px;">操作</th>
                             </tr>
                         </thead>
                         <tbody id="productTable">
-                            <tr><td colspan="7" style="text-align: center; color: #b8b8d0;">加载中...</td></tr>
+                            <tr><td colspan="7" style="text-align: center; color: #b8b8d0; padding: 30px;">加载中...</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
     </div>
-    
-    <script src="js/api.js"></script>
-    <script src="js/utils.js"></script>
+
     <script>
-        let categories = [];
-        
-        async function loadCategories() {
+    // 错误处理：捕获所有 JS 错误并显示在顶部红色条，便于排查
+    function showJsError(msg) {
+        const bar = document.getElementById('js-error-bar');
+        if (!bar) return;
+        bar.style.display = 'block';
+        bar.textContent = '⚠️ 错误: ' + msg + '\n（请截图发给我）';
+    }
+    window.addEventListener('error', (e) => {
+        showJsError(e.message + ' at ' + (e.filename || '?') + ':' + (e.lineno || '?'));
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+        showJsError('Promise rejection: ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+    });
+
+    let categories = [];
+
+    async function loadCategories() {
+        try {
             categories = await api.getCategories();
+            const sel = document.getElementById('add-category');
+            // 顶层分类优先
+            const opts = categories
+                .filter(c => !c.parent_id)
+                .map(c => `<option value="${c.id}">${c.name}</option>`)
+                .join('');
+            sel.innerHTML = '<option value="">选择分类 *</option>' + opts;
+        } catch (e) {
+            showJsError('加载分类失败：' + e.message);
         }
-        
-        async function loadProducts() {
-            try {
-                const products = await api.getProducts();
-                const tbody = document.getElementById('productTable');
-                tbody.innerHTML = products.map(product => `
-                    <tr>
-                        <td>${product.id}</td>
-                        <td>${product.name}</td>
-                        <td>${product.category_name || '-'}</td>
-                        <td>${product.unit || '-'}</td>
-                        <td>${formatCurrency(product.price)}</td>
-                        <td>${product.stock}</td>
-                        <td>
-                            <div class="table-actions">
-                                <button class="btn-edit" onclick="showEditModal(${product.id})">编辑</button>
-                                <button class="btn-delete" onclick="deleteProduct(${product.id})">删除</button>
-                            </div>
-                        </td>
-                    </tr>
-                `).join('');
-            } catch (error) {
-                showAlert(error.message, 'error');
+    }
+
+    function escapeHtml(s) {
+        if (s === null || s === undefined) return '';
+        return String(s).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+    }
+
+    async function loadProducts() {
+        try {
+            const products = await api.getProducts();
+            document.getElementById('product-total').textContent = products.length;
+            const tbody = document.getElementById('productTable');
+            if (products.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#b8b8d0;padding:30px;">暂无商品，请用上方表单添加</td></tr>';
+                return;
             }
+            tbody.innerHTML = products.map(product => `
+                <tr data-id="${product.id}">
+                    <td>${product.id}</td>
+                    <td class="cell-name">${escapeHtml(product.name)}</td>
+                    <td class="cell-cat">${escapeHtml(product.category_name || '-')}</td>
+                    <td class="cell-unit">${escapeHtml(product.unit || '-')}</td>
+                    <td class="cell-price">${escapeHtml(formatCurrency(product.price))}</td>
+                    <td class="cell-stock">${product.stock}</td>
+                    <td>
+                        <div class="product-table-actions table-actions">
+                            <button type="button" class="btn-edit action-edit">编辑</button>
+                            <button type="button" class="btn-delete action-delete">删除</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            // 绑定行内按钮事件
+            tbody.querySelectorAll('tr').forEach(tr => {
+                const id = tr.dataset.id;
+                tr.querySelector('.action-edit').addEventListener('click', () => startInlineEdit(tr));
+                tr.querySelector('.action-delete').addEventListener('click', () => deleteProduct(id));
+            });
+        } catch (error) {
+            showJsError('加载商品失败：' + error.message);
+            const tbody = document.getElementById('productTable');
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#f87171;padding:30px;">加载失败：' + escapeHtml(error.message) + '</td></tr>';
         }
-        
-        function getCategoryOptions(selectedId = null) {
-            return categories.map(cat => 
-                `<option value="${cat.id}" ${cat.id === selectedId ? 'selected' : ''}>${cat.name}</option>`
-            ).join('');
+    }
+
+    function startInlineEdit(tr) {
+        const id = tr.dataset.id;
+        const product = {
+            id: id,
+            name: tr.querySelector('.cell-name').textContent,
+            unit: tr.querySelector('.cell-unit').textContent === '-' ? '' : tr.querySelector('.cell-unit').textContent,
+            price: (tr.querySelector('.cell-price').textContent || '').replace(/[¥,]/g, ''),
+            stock: tr.querySelector('.cell-stock').textContent,
+            category_id: categories.find(c => c.name === tr.querySelector('.cell-cat').textContent)?.id || ''
+        };
+        tr.classList.add('editing');
+        tr.querySelector('.cell-name').innerHTML = `<input type="text" class="e-name" value="${escapeHtml(product.name)}">`;
+        tr.querySelector('.cell-cat').innerHTML = `<select class="e-cat">${categories.filter(c=>!c.parent_id).map(c=>`<option value="${c.id}" ${c.id==product.category_id?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}</select>`;
+        tr.querySelector('.cell-unit').innerHTML = `<input type="text" class="e-unit" value="${escapeHtml(product.unit)}">`;
+        tr.querySelector('.cell-price').innerHTML = `<input type="number" step="0.01" class="e-price" value="${product.price}">`;
+        tr.querySelector('.cell-stock').innerHTML = `<input type="number" class="e-stock" value="${product.stock}">`;
+        tr.querySelector('.product-table-actions').innerHTML = `
+            <button type="button" class="btn-confirm action-save">保存</button>
+            <button type="button" class="btn-secondary action-cancel" style="padding:6px 12px;font-size:12px;border-radius:8px;">取消</button>
+        `;
+        tr.querySelector('.action-save').addEventListener('click', () => saveInlineEdit(tr, id));
+        tr.querySelector('.action-cancel').addEventListener('click', () => loadProducts());
+    }
+
+    async function saveInlineEdit(tr, id) {
+        try {
+            const data = {
+                name: tr.querySelector('.e-name').value.trim(),
+                category_id: tr.querySelector('.e-cat').value || null,
+                unit: tr.querySelector('.e-unit').value.trim(),
+                price: parseFloat(tr.querySelector('.e-price').value) || null,
+                stock: parseInt(tr.querySelector('.e-stock').value) || 0
+            };
+            if (!data.name) {
+                showAlert('商品名称不能为空', 'error');
+                return;
+            }
+            await api.updateProduct(id, data);
+            showAlert('修改成功', 'success');
+            await loadProducts();
+        } catch (e) {
+            showJsError('保存失败：' + e.message);
+            showAlert('保存失败：' + e.message, 'error');
         }
-        
-        function showAddModal() {
-            createModal('添加商品', `
-                <div class="form-group">
-                    <label>商品名称</label>
-                    <input type="text" id="prod-name" placeholder="请输入商品名称">
-                </div>
-                <div class="form-group">
-                    <label>商品类别</label>
-                    <select id="prod-category">
-                        <option value="">请选择类别</option>
-                        ${getCategoryOptions()}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>计量单位</label>
-                    <input type="text" id="prod-unit" placeholder="如：件、个、箱">
-                </div>
-                <div class="form-group">
-                    <label>参考价格</label>
-                    <input type="number" step="0.01" id="prod-price" placeholder="请输入参考价格">
-                </div>
-                <div class="form-group">
-                    <label>初始库存</label>
-                    <input type="number" id="prod-stock" value="0">
-                </div>
-            `, async () => {
+    }
+
+    async function deleteProduct(id) {
+        if (!confirm('确定要删除该商品吗？')) return;
+        try {
+            await api.deleteProduct(id);
+            showAlert('已删除', 'success');
+            await loadProducts();
+        } catch (error) {
+            showAlert('删除失败：' + error.message, 'error');
+        }
+    }
+
+    function bindAddForm() {
+        document.getElementById('add-submit').addEventListener('click', async () => {
+            try {
                 const data = {
-                    name: document.getElementById('prod-name').value,
-                    category_id: document.getElementById('prod-category').value || null,
-                    unit: document.getElementById('prod-unit').value,
-                    price: parseFloat(document.getElementById('prod-price').value) || null,
-                    stock: parseInt(document.getElementById('prod-stock').value) || 0
+                    name: document.getElementById('add-name').value.trim(),
+                    category_id: document.getElementById('add-category').value || null,
+                    unit: document.getElementById('add-unit').value.trim(),
+                    price: parseFloat(document.getElementById('add-price').value) || null,
+                    stock: parseInt(document.getElementById('add-stock').value) || 0
                 };
-                
                 if (!data.name) {
-                    throw new Error('请输入商品名称');
+                    showAlert('请填写商品名称', 'error');
+                    document.getElementById('add-name').focus();
+                    return;
                 }
-                
                 await api.createProduct(data);
-                showAlert('商品添加成功');
-                loadProducts();
-            });
-        }
-        
-        async function showEditModal(id) {
-            const product = await api.getProduct(id);
-            createModal('编辑商品', `
-                <div class="form-group">
-                    <label>商品名称</label>
-                    <input type="text" id="edit-name" value="${product.name}">
-                </div>
-                <div class="form-group">
-                    <label>商品类别</label>
-                    <select id="edit-category">
-                        <option value="">请选择类别</option>
-                        ${getCategoryOptions(product.category_id)}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>计量单位</label>
-                    <input type="text" id="edit-unit" value="${product.unit || ''}">
-                </div>
-                <div class="form-group">
-                    <label>参考价格</label>
-                    <input type="number" step="0.01" id="edit-price" value="${product.price || ''}">
-                </div>
-                <div class="form-group">
-                    <label>库存数量</label>
-                    <input type="number" id="edit-stock" value="${product.stock}">
-                </div>
-            `, async () => {
-                const data = {
-                    name: document.getElementById('edit-name').value,
-                    category_id: document.getElementById('edit-category').value || null,
-                    unit: document.getElementById('edit-unit').value,
-                    price: parseFloat(document.getElementById('edit-price').value) || null,
-                    stock: parseInt(document.getElementById('edit-stock').value) || 0
-                };
-                
-                if (!data.name) {
-                    throw new Error('请输入商品名称');
-                }
-                
-                await api.updateProduct(id, data);
-                showAlert('商品更新成功');
-                loadProducts();
-            });
-        }
-        
-        async function deleteProduct(id) {
-            if (!confirm('确定要删除该商品吗？')) return;
-            
-            try {
-                await api.deleteProduct(id);
-                showAlert('商品删除成功');
-                loadProducts();
-            } catch (error) {
-                showAlert(error.message, 'error');
+                showAlert('添加成功：' + data.name, 'success');
+                document.getElementById('add-reset').click();
+                await loadProducts();
+            } catch (e) {
+                showAlert('添加失败：' + e.message, 'error');
+                showJsError('添加失败：' + e.message);
             }
-        }
-        
-        document.addEventListener('DOMContentLoaded', async () => {
+        });
+        document.getElementById('add-reset').addEventListener('click', () => {
+            document.getElementById('add-name').value = '';
+            document.getElementById('add-category').value = '';
+            document.getElementById('add-unit').value = '';
+            document.getElementById('add-price').value = '';
+            document.getElementById('add-stock').value = '0';
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
             await loadCurrentUser();
             await loadCategories();
+            bindAddForm();
             await loadProducts();
-        });
+        } catch (e) {
+            showJsError('初始化失败：' + e.message);
+        }
+    });
     </script>
 </body>
 </html>

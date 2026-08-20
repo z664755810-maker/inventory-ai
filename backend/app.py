@@ -79,7 +79,7 @@ with app.app_context():
         cursor.close()
 
 with app.app_context():
-    from routes import users, categories, products, customers, purchase_orders, sales_orders, stock, invoices, agent
+    from routes import users, categories, products, customers, purchase_orders, sales_orders, stock, invoices, agent, backup
 
     # 注册蓝图
     app.register_blueprint(users)
@@ -91,6 +91,7 @@ with app.app_context():
     app.register_blueprint(stock)
     app.register_blueprint(invoices)
     app.register_blueprint(agent)
+    app.register_blueprint(backup)
 
     db.create_all()
     print("Database tables created successfully")

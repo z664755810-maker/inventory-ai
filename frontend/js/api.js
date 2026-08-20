@@ -215,5 +215,41 @@ const api = {
 
     getAgentConfigs() {
         return this.request('/agent/configs');
+    },
+
+    // 数据备份导出导入（解决 Railway 临时容器数据丢失）
+    backupStats() {
+        return this.request('/admin/backup-stats');
+    },
+
+    // 导出：因返回的是 JSON 文件下载，需要单独 fetch（不能用通用 request）
+    async backupExport() {
+        const response = await fetch(`${API_BASE_URL}/admin/backup-export`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: '导出失败' }));
+            throw new Error(err.error || '导出失败');
+        }
+        // 从响应头取文件名
+        const disposition = response.headers.get('Content-Disposition') || '';
+        const m = disposition.match(/filename="([^"]+)"/);
+        const filename = m ? m[1] : `inventory-backup-${Date.now()}.json`;
+        const blob = await response.blob();
+        // 触发浏览器下载
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        return { filename };
+    },
+
+    backupImport(data) {
+        return this.request('/admin/backup-import', 'POST', data);
     }
 };

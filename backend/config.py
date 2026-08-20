@@ -12,9 +12,20 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-change-me')
 
     # 数据库：默认本地 SQLite；生产可设 DATABASE_URL 指向 Postgres
+    # Railway 免费层容器重启即清空。如需持久化，加一个 Volume 挂到 /data
+    # 并设置 RAILWAY_VOLUME_MOUNT_PATH=/data，SQLite 文件即落地持久卷，重启不丢。
+    _default_db_path = os.path.join(basedir, 'inventory.db')
+    _volume_mount = os.getenv('RAILWAY_VOLUME_MOUNT_PATH')
+    if _volume_mount:
+        try:
+            os.makedirs(_volume_mount, exist_ok=True)
+            _default_db_path = os.path.join(_volume_mount, 'inventory.db')
+        except Exception:
+            # 不可写则退回本地路径
+            pass
     DATABASE_URL = os.getenv(
         'DATABASE_URL',
-        'sqlite:///' + os.path.join(basedir, 'inventory.db')
+        'sqlite:///' + _default_db_path
     )
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
