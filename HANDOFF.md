@@ -1,0 +1,64 @@
+# 进销存管理系统 — 项目交接文档（HANDOFF）
+
+> 生成时间：2026-08-20
+> 作者：郑鑫源（27届 CS，二本，求职作品集项目 #1）
+> 状态：**功能基本完成、已部署，本项目开发到此为止**
+
+---
+
+## 1. 项目概况
+
+- **定位**：个人作品集项目，非商用。目的是展示「能应对真实业务场景」的全栈能力。
+- **技术栈**：
+  - 前端：原生 HTML + Vue 3（CDN）+ 自写 CSS（无构建步骤）
+  - 后端：Flask + SQLAlchemy + SQLite（WAL 模式）
+  - AI：OpenAI 兼容协议接入智谱 GLM-4-Flash（真实 LLM，非 mock）
+  - 部署：Railway（Root Directory = `/backend`，服务目录 = `backend/static/`）
+- **仓库**：本地 `C:/Users/Lenovo/Desktop/project_zxy`，master 分支，通过 GitHub Desktop 推送 → Railway 自动重部署。
+
+## 2. 已实现功能
+
+| 模块 | 状态 | 说明 |
+|---|---|---|
+| 登录 / 注册 / 演示账号 | ✅ | `admin / admin` 默认账号（bcrypt，seed 幂等保障不丢） |
+| 商品类型（分类树） | ⚠️ 见「已知问题」 | 按钮交互疑似仍有问题 |
+| 商品档案（CRUD） | ✅ | 已重写为行内新增/编辑，不依赖 modal |
+| 用户管理 | ✅ | 含限流、输入校验、禁止删默认管理员 |
+| 客户 / 采购单 / 销售单 / 库存 / 发票 | ✅ | 基础 CRUD + 图表 |
+| 主页图表 | ✅ | Chart.js（CSP 已放行 cdn.jsdelivr.net） |
+| AI 业务智能助手 | ✅ | 单一助手（移除冗余子 Agent 切换），对话历史 localStorage 持久化 |
+| 数据导入 / 导出 | ✅ | 用户管理页 📤📥，解决部署后数据丢失 |
+| 安全加固 | ✅ | Flask-Limiter 限流、CSP/X-Frame 等响应头、全局异常处理、WAL 防并发崩溃 |
+| Railway Volume 支持 | ✅（需手动配置） | `config.py` 读 `RAILWAY_VOLUME_MOUNT_PATH`，挂卷后重启不丢数据 |
+
+## 3. 已知问题（本项目不再修复）
+
+1. **商品类型页交互仍不稳定**：多轮修改后用户反馈「按钮依旧不能使用」。根因未最终定位（怀疑 Vue 事件绑定 / 树组件渲染边缘情况）。前端 `categories.html` 与部署版已同步、CSS `opacity:1` 也已设置，但实测仍有异常，需后续单独排查。
+2. **Railway 免费层数据临时**：未挂持久卷时，部署/重启会清空用户自建数据（admin 因 seed 幂等不丢）。已用「导出/导入」缓解，挂 Volume 可根治。
+3. **系统名**：已全局改为「义乌商品物流系统」（原话「义务」按同音误写字面执行；若要「义务」需回退）。
+
+## 4. 部署步骤（给未来的自己）
+
+```text
+1. 打开 GitHub Desktop
+2. 确认 commit 已就位（最后一次相关提交见 git log）
+3. 点 Push（Ctrl+P）
+4. Railway 自动重部署，约 1–2 分钟
+5. 访问 https://inventory-ai-production-a739.up.railway.app
+6. 用 admin / admin 登录
+```
+
+**关键铁律**（本仓库踩过的坑）：
+- 任何前端改动必须**同时**改 `frontend/` 源文件与 `backend/static/` 部署副本，提交前 `diff` 核对。
+- API 地址用相对路径 `/api`，禁止写死 `localhost`。
+
+## 5. 简历怎么讲这个项目
+
+- 全栈（Flask + Vue3）+ 真实 LLM 接入 + 三层防御（限流/安全头/WAL）
+- 能讲清「ephemeral vs persistent 存储差异」「为什么用 WAL 防并发崩溃」
+- 数据导入导出 = 展示你对部署数据丢失问题的工程化解决思路
+
+## 6. 后续（若有精力）
+
+- 单独开对话排查商品类型页 Vue 交互 bug（建议在干净上下文里做）。
+- 或直接接受「演示用 admin/admin + 导出导入」作为既定方案，本项目归档。
