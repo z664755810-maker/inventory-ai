@@ -41,11 +41,12 @@ def add_security_headers(response):
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     # 允许同源 + 智谱 API（CORS 已通过 Flask-CORS 处理，浏览器 CSP 适度放开）
+    # 注意：script-src 必须包含 cdn.jsdelivr.net，否则 index.html 的 Chart.js 会被拦截、图表全空
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
         "img-src 'self' data: blob:; "
         "style-src 'self' 'unsafe-inline'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net; "
         "connect-src 'self'; "
         "frame-ancestors 'self';"
     )
